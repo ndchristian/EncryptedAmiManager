@@ -41,18 +41,16 @@ def json_data():
 
 
 def revoke_ami_access():
-    print("Revoking access to AMI...")
     main_ec2_cli.modify_image_attribute(
         ImageId=ami_id,
         OperationType='remove',
         UserIds=account_ids,
         LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
-    print("Finished revoking access to AMI")
 
 
 def rollback(amis, put_items):
     """Rollbacks all AWS actions done in case something goes wrong."""
-
+    print("Rolling back...")
     revoke_ami_access()
 
     for account in amis:
@@ -71,16 +69,14 @@ def rollback(amis, put_items):
         ec2_cli = session.client('ec2', region_name=account['Region'])
         dynadb_cli = session.client('dynamodb', region_name=account['Region'])
 
-        print("Deregistering copied AMIs.. ")
         for image_to_delete in amis:
             ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
-        print("Finished deregistering AMIs.")
 
-        print("Rolling back DynamoDB entries...")
         table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
         for put_item in put_items:
             table.delete_item(Key=put_item)
-        print("Finished rolling back DyanmoDB entries")
+
+    print("Finished rolling back.")
 
 
 def main_share_amis():
