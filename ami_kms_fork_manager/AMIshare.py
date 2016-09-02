@@ -32,15 +32,6 @@ def share_ami():
         LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
 
 
-def revoke_ami_access():
-    """Removes permission for each account to be able to use the AMI."""
-    main_ec2_cli.modify_image_attribute(
-        ImageId=ami_id,
-        OperationType='remove',
-        UserIds=account_ids,
-        LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
-
-
 def json_data():
     """Grabs all data from the config file"""
     with open(CONFIG_PATH, 'r') as j:
@@ -49,11 +40,25 @@ def json_data():
         return read_data
 
 
-def delete_amis(amis):
-    """If something goes wrong while copying the AMI to another account this will rollback all previous AMI copying."""
-    for image_to_delete in amis:
+def revoke_ami_access():
+    print("Revoking access to AMI...")
+    main_ec2_cli.modify_image_attribute(
+        ImageId=ami_id,
+        OperationType='remove',
+        UserIds=account_ids,
+        LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
+    print("Finished revoking access to AMI")
+
+
+def rollback(amis, put_items):
+    """Rollbacks all AWS actions done in case something goes wrong."""
+
+    revoke_ami_access()
+
+    for account in amis:
+        # STS allows you to connect to other accounts using assumed roles.
         assumed_role = main_sts_cli.assume_rule(
-            RoleArn="arn:aws:iam::%s:role/%s" % (image_to_delete['AccountNumber'], role_name),
+            RoleArn="arn:aws:iam::%s:role/%s" % (account['AccountNumber'], role_name),
             RoleSessionName="AssumedRoleSession%s" % int(time.time()))
 
         role_credentials = assumed_role['Credentials']
@@ -63,16 +68,27 @@ def delete_amis(amis):
             aws_secret_access_key=role_credentials['SecretAccessKey'],
             aws_session_token=role_credentials['SessionToken'])
 
-        ec2_cli = session.client('ec2', region_name=image_to_delete['Region'])
+        ec2_cli = session.client('ec2', region_name=account['Region'])
+        dynadb_cli = session.client('dynamodb', region_name=account['Region'])
 
-        ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
+        print("Deregistering copied AMIs.. ")
+        for image_to_delete in amis:
+            ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
+        print("Finished deregistering AMIs.")
 
-    print("Finished rollingback AMIs.")
+        print("Rolling back DynamoDB entries...")
+        table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
+        for put_item in put_items:
+            table.delete_item(Key=put_item)
+        print("Finished rolling back DyanmoDB entries")
 
 
 def main_share_amis():
     """Main function that shares,copies, and encrypts the AMI in a new account. Also adds specified data into
     DynamoDB."""
+
+    put_item_list = []
+    ami_list = []
 
     try:
         share_ami()
@@ -111,7 +127,6 @@ def main_share_amis():
                     except KeyError:
                         image_description = 'None'
 
-                    ami_list = []
                     try:
                         for data in config_data['Accounts']:
                             if account_id == data['AccountNumber']:
@@ -129,27 +144,32 @@ def main_share_amis():
 
                     except Exception as e:
                         print(e)
-                        print("Deleting all previous copied AMIs...")
-                        delete_amis(amis=ami_list)
+                        rollback(amis=ami_list, put_items=put_item_list)
 
                     # Adds specified data to DynamoDB. This will need to be changed for each person.
-                    table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
-                    table.put_item(
-                        Item={
-                            "sourceami": ami_id,
-                            "targetami": encrypted_ami['ImageId'],
-                            "targetregion": region_data,
-                            "targetawsaccountnum": account_num,
-                            "companyaccountnum": config_data['General'][0]['CompanyAccountNumber'],
-                            "releasedate": config_data['General'][0]['ReleaseDate'],
-                            "amiversionnum": config_data['General'][0]['AmiVersionNumber'],
-                            "stasisdate": config_data['General'][0]['StasisDate'],
-                            "os": config_data['General'][0]['OS'],
-                            "osver": config_data['General'][0]['OsVersion'],
-                            "comments:": config_data['General'][0]['Comments'],
-                            "jobnum": 'jobnum-%s' % int(time.time()),
-                            "logicaldelete": 0
-                        })
+                    put_items = {
+                        "sourceami": ami_id,
+                        "targetami": encrypted_ami['ImageId'],
+                        "targetregion": region_data,
+                        "targetawsaccountnum": account_num,
+                        "companyaccountnum": config_data['General'][0]['CompanyAccountNumber'],
+                        "releasedate": config_data['General'][0]['ReleaseDate'],
+                        "amiversionnum": config_data['General'][0]['AmiVersionNumber'],
+                        "stasisdate": config_data['General'][0]['StasisDate'],
+                        "os": config_data['General'][0]['OS'],
+                        "osver": config_data['General'][0]['OsVersion'],
+                        "comments:": config_data['General'][0]['Comments'],
+                        "jobnum": 'jobnum-%s' % int(time.time()),
+                        "logicaldelete": 0
+                    }
+
+                    try:
+                        table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
+                        table.put_item(put_items)
+                        put_item_list.append(put_items)
+                    except Exception as e:  # General exception until a more specific, not even sure if it's needed
+                        print(e)
+                        rollback(amis=ami_list, put_items=put_item_list)
 
 
 if __name__ == '__main__':
