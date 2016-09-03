@@ -17,6 +17,7 @@ import json
 import time
 
 import boto3
+import botocore
 
 # User must set path to the config file.
 CONFIG_PATH = 'config.json'
@@ -25,11 +26,25 @@ CONFIG_PATH = 'config.json'
 def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
-    main_ec2_cli.modify_image_attribute(
-        ImageId=ami_id,
-        OperationType='add',
-        UserIds=account_ids,
-        LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
+    print("Sharing AMI...")
+    try:
+        main_ec2_cli.modify_image_attribute(
+            DryRun=True,
+            ImageId=ami_id,
+            OperationType='add',
+            UserIds=account_ids,
+            LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
+    except Exception as e:
+        if e.response['Error']['Code'] == 'DryRunOperation':
+            main_ec2_cli.modify_image_attribute(
+                ImageId=ami_id,
+                OperationType='add',
+                UserIds=account_ids,
+                LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
+        else:
+            raise e
+
+    print("Successfully shared the AMI.")
 
 
 def json_data():
@@ -37,15 +52,29 @@ def json_data():
     with open(CONFIG_PATH, 'r') as j:
         read_data = json.loads(j.read())
 
-        return read_data
+    return read_data
 
 
 def revoke_ami_access():
-    main_ec2_cli.modify_image_attribute(
-        ImageId=ami_id,
-        OperationType='remove',
-        UserIds=account_ids,
-        LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
+    """Revokes access to the specified AMI."""
+
+    print("Revoking access to AMI...")
+    try:
+        main_ec2_cli.modify_image_attribute(
+            DryRun=True,
+            ImageId=ami_id,
+            OperationType='remove',
+            UserIds=account_ids,
+            LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
+    except Exception as e:
+        if e.response['Error']['Code'] == 'DryRunOperation':
+            main_ec2_cli.modify_image_attribute(
+                ImageId=ami_id,
+                OperationType='remove',
+                UserIds=account_ids,
+                LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
+        else:
+            raise e
 
 
 def rollback(amis, put_items):
@@ -72,9 +101,13 @@ def rollback(amis, put_items):
         for image_to_delete in amis:
             ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
 
-        table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
-        for put_item in put_items:
-            table.delete_item(Key=put_item)
+        try:
+            table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
+            for put_item in put_items:
+                table.delete_item(Key=put_item)
+        except botocore.exceptions.ClientError as e:
+            print(e)
+            pass
 
     print("Finished rolling back.")
 
@@ -88,7 +121,7 @@ def main_share_amis():
 
     try:
         share_ami()
-    except Exception as e:  # General error for now until I know which error is thrown.
+    except botocore.exceptions.ClientError as e:
         print(e)
         print("Unable to share AMI with all accounts.")
         # revoke_ami_access() # May not be needed. Need to test how AWS handles an error here.
@@ -137,8 +170,9 @@ def main_share_amis():
                         ami_list.append({'AccountNumber': account_num,
                                          'Region': region,
                                          'AMI_ID': encrypted_ami['ImageId']})
+                        print("Created encrypted AMI for %s." % data['AccountNumber'])
 
-                    except Exception as e:
+                    except botocore.exceptions.ClientError as e:
                         print(e)
                         rollback(amis=ami_list, put_items=put_item_list)
 
@@ -163,6 +197,7 @@ def main_share_amis():
                         table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
                         table.put_item(put_items)
                         put_item_list.append(put_items)
+                        print("Put item for %s in %s. " % (data['AccountNumber'], region_data))
                     except Exception as e:  # General exception until a more specific, not even sure if it's needed
                         print(e)
                         rollback(amis=ami_list, put_items=put_item_list)
