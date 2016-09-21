@@ -19,6 +19,7 @@ import time
 import boto3
 import botocore
 
+
 # User must set path to the config file.
 CONFIG_PATH = 'config.json'
 
@@ -149,7 +150,6 @@ def main_share_amis():
                 for region_data in acc_data['Regions']:
 
                     ec2_cli = session.client('ec2', region_name=region_data)
-                    dynadb_cli = session.client('dynamodb', region_name=region_data)
 
                     try:
                         image_description = image_details['Description']
@@ -194,7 +194,7 @@ def main_share_amis():
                     }
 
                     try:
-                        table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
+                        table = main_dyna_cli.Table(config_data['General'][0]['DynamoDBTable'])
                         table.put_item(put_items)
                         put_item_list.append(put_items)
                         print("Put item for %s in %s. " % (data['AccountNumber'], region_data))
@@ -207,6 +207,7 @@ if __name__ == '__main__':
 
     main_sts_cli = boto3.client('sts')
     main_ec2_cli = boto3.client('ec2')
+    main_dyna_cli = boto3.client('dynamodb')
 
     region = boto3.session.Session().region_name
 
