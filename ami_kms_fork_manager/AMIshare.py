@@ -19,7 +19,6 @@ import time
 import boto3
 import botocore
 
-
 # User must set path to the config file.
 CONFIG_PATH = 'config.json'
 
@@ -78,13 +77,77 @@ def revoke_ami_access():
             raise e
 
 
-def rollback(amis, put_items):
+def create_html_doc(ami_details_list):
+    rollback_key_list = []
+
+    try:
+        image_description = image_details['Description']
+    except KeyError:
+        image_description = 'None'
+
+    s3_input = """
+    <!DOCTYPE html>
+    <html>
+    <body>
+
+    <h3>Source AMI: %s</h3>
+    <h3>Name: %s</h3>
+    <h3>OS: %s</h3>
+    <h3>Description: %s</h3>
+    <h3>Date: %s</h3>
+    <h3>ARN: %s</h3>
+
+    <p>______________________</p>
+    <h3>Encrypted Root AMIs</h3>
+    <p>_____________________</p>
+    """ % (image_details['ImageId'],
+           image_details['Name'],
+           config_data['General'][0]['OS'],
+           image_description,
+           config_data['General'][0]['ReleaseDate'],
+           'arn:aws:ec2:%s::image/%s' % (region, image_details['ImageId']))
+
+    for ami_details in ami_details_list:
+        s3_input += "<p>Company_account_Number: %s | AMI: %s | ARN:arn:aws:ec2:%s::image/%s</p>\n\n " % (
+            ami_details['AccountNumber'],
+            ami_details['AMI_ID'],
+            ami_details['Region'], ami_details['AMI_ID'])
+
+    s3_input += """
+    </body>
+    </html>"""
+
+    bucket_key = "%s/%s.html" % (config_data['General'][0]['HTML_S3keyLocation'], int(time.time()))
+
+    main_s3_cli.put_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
+                           Key=bucket_key,
+                           Body=s3_input)
+
+    rollback_key_list.append(bucket_key)
+
+    return rollback_key_list
+
+
+def rollback(amis, put_items, keys):
     """Rollbacks all AWS actions done in case something goes wrong."""
     print("Rolling back...")
     revoke_ami_access()
 
+    try:
+        table = main_dyna_cli.Table(config_data['General'][0]['DynamoDBTable'])
+        for put_item in put_items:
+            table.delete_item(Key=put_item)
+    except botocore.exceptions.ClientError as e:
+        print(e)
+        pass
+
+    for key in keys:
+        main_s3_cli.delete_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
+                                  Key=key)
+
     for account in amis:
         # STS allows you to connect to other accounts using assumed roles.
+
         assumed_role = main_sts_cli.assume_rule(
             RoleArn="arn:aws:iam::%s:role/%s" % (account['AccountNumber'], role_name),
             RoleSessionName="AssumedRoleSession%s" % int(time.time()))
@@ -97,18 +160,9 @@ def rollback(amis, put_items):
             aws_session_token=role_credentials['SessionToken'])
 
         ec2_cli = session.client('ec2', region_name=account['Region'])
-        dynadb_cli = session.client('dynamodb', region_name=account['Region'])
 
         for image_to_delete in amis:
             ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
-
-        try:
-            table = dynadb_cli.Table(config_data['General'][0]['DynamoDBTable'])
-            for put_item in put_items:
-                table.delete_item(Key=put_item)
-        except botocore.exceptions.ClientError as e:
-            print(e)
-            pass
 
     print("Finished rolling back.")
 
@@ -167,14 +221,14 @@ def main_share_amis():
                                     Encrypted=True,
                                     KmsKeyId=config_data['RegionEncryptionKeys'][0][region])
 
-                        ami_list.append({'AccountNumber': account_num,
-                                         'Region': region,
-                                         'AMI_ID': encrypted_ami['ImageId']})
-                        print("Created encrypted AMI for %s." % data['AccountNumber'])
+                            ami_list.append({'AccountNumber': account_num,
+                                             'Region': region,
+                                             'AMI_ID': encrypted_ami['ImageId']})
+                            print("Created encrypted AMI for %s." % data['AccountNumber'])
 
                     except botocore.exceptions.ClientError as e:
                         print(e)
-                        rollback(amis=ami_list, put_items=put_item_list)
+                        rollback(amis=ami_list, put_items=put_item_list, keys=None)
 
                     # Adds specified data to DynamoDB. This will need to be changed for each person.
                     put_items = {
@@ -193,14 +247,15 @@ def main_share_amis():
                         "logicaldelete": 0
                     }
 
+                    key_data = create_html_doc(ami_details_list=ami_list)
+
                     try:
                         table = main_dyna_cli.Table(config_data['General'][0]['DynamoDBTable'])
                         table.put_item(put_items)
                         put_item_list.append(put_items)
-                        print("Put item for %s in %s. " % (data['AccountNumber'], region_data))
                     except Exception as e:  # General exception until a more specific, not even sure if it's needed
                         print(e)
-                        rollback(amis=ami_list, put_items=put_item_list)
+                        rollback(amis=ami_list, put_items=put_item_list, keys=key_data)
 
 
 if __name__ == '__main__':
@@ -208,6 +263,7 @@ if __name__ == '__main__':
     main_sts_cli = boto3.client('sts')
     main_ec2_cli = boto3.client('ec2')
     main_dyna_cli = boto3.client('dynamodb')
+    main_s3_cli = boto3.client('s3')
 
     region = boto3.session.Session().region_name
 

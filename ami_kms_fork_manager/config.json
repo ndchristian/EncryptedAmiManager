@@ -10,7 +10,9 @@
       "StasisDate" : "",
       "OS" : "",
       "Comments" : "",
-      "DynamoDBTable" : ""
+      "DynamoDBTable" : "",
+      "HTML_S3bucket" : "",
+      "HTML_S3keyLocation" : ""
     }
   ],
   "Accounts" : [
