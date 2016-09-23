@@ -58,7 +58,7 @@ def share_ami():
                 UserIds=account_ids,
                 LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
         else:
-            raise e
+            raise DryRunErr
 
 
 def revoke_ami_access():
@@ -80,7 +80,7 @@ def revoke_ami_access():
                 UserIds=account_ids,
                 LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
         else:
-            raise e
+            raise DryRunErr
 
 
 def json_data_upload(json_data):
@@ -198,8 +198,8 @@ if __name__ == '__main__':
     account_ids = [account['AccountNumber'] for account in config_data['Account']]
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]
 
-    put_item_list = []
     ami_list = []
+    put_item_list = []
     html_doc_list = []
     json_doc_list = []
 
