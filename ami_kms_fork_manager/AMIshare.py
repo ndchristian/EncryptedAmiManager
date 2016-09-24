@@ -85,7 +85,7 @@ def revoke_ami_access():
 
 def json_data_upload(json_data):
     """Creates JSON file for computer reading."""
-    bucket_key = "%s/%s.html" % (config_data['General'][0]['JSON_S3keyLocation'], int(time.time()))
+    bucket_key = "%s/%s.json" % (config_data['General'][0]['JSON_S3keyLocation'], int(time.time()))
 
     MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['JSON_S3bucket'],
                            Key=bucket_key,
