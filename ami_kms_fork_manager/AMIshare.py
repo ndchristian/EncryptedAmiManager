@@ -83,16 +83,17 @@ def revoke_ami_access():
             raise DryRunErr
 
 
-def json_data_upload(json_data):
+def json_data_upload(json_data_list):
     """Creates JSON file for computer reading."""
     bucket_key = "%s/%s.json" % (config_data['General'][0]['JSON_S3keyLocation'], int(time.time()))
 
-    MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['JSON_S3bucket'],
-                           Key=bucket_key,
-                           Body=json.dumps(json_data,
-                                           sort_keys=True,
-                                           indent=4,
-                                           separators=(',', ': ')))
+    for json_data in json_data_list:
+        MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['JSON_S3bucket'],
+                               Key=bucket_key,
+                               Body=json.dumps(json_data,
+                                               sort_keys=True,
+                                               indent=4,
+                                               separators=(',', ': ')))
     return bucket_key
 
 
@@ -199,9 +200,9 @@ if __name__ == '__main__':
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]
 
     ami_list = []
+    json_info_list = []
     put_item_list = []
     html_doc_list = []
-    json_doc_list = []
 
     try:
         share_ami()
@@ -259,8 +260,7 @@ if __name__ == '__main__':
                         print(e)
                         rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[])
 
-                    html_doc_list.append(create_html_doc(ami_details_list=ami_list))
-
+                    # Gathers DB and json values
                     put_item_list.append({
                         'sourceami': ami_id,
                         'targetami': encrypted_ami['ImageId'],
@@ -279,16 +279,20 @@ if __name__ == '__main__':
                     })
 
                     j_data = {
-                        'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
-                        'awsaccountnumber': account_num,
-                        'sourceami': ami_id,
-                        'targetami': encrypted_ami['ImageId'],
-                        'os': config_data['General'][0]['OS'],
-                        'osver': config_data['General'][0]['OsVersion'],
+                        account_num: {
+                            'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
+                            'sourceami': ami_id,
+                            'targetami': encrypted_ami['ImageId'],
+                            'os': config_data['General'][0]['OS'],
+                            'osver': config_data['General'][0]['OsVersion']},
 
                     }
 
-                    json_doc_list.append(json_data_upload(json_data=j_data))
+                    json_info_list.append(j_data)
+
+    # Creates HTML and JSON documents
+    json_data_upload(json_data_list=json_info_list)
+    html_doc_list.append(create_html_doc(ami_details_list=ami_list))
 
     # Adds entries into a DyanomoDB database
     for put_item in put_item_list:
