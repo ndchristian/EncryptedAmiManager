@@ -196,7 +196,7 @@ if __name__ == '__main__':
 
     ami_id = config_data['General'][0]['AMI_ID']
     role_name = config_data['General'][0]['RoleName']
-    account_ids = [account['AccountNumber'] for account in config_data['Account']]
+    account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]
 
     ami_list = []
