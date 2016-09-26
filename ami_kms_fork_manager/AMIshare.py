@@ -279,12 +279,12 @@ if __name__ == '__main__':
                     })
 
                     j_data = {
-                        account_num: {
+                            'awsaccountnumber': account_num,
                             'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
                             'sourceami': ami_id,
                             'targetami': encrypted_ami['ImageId'],
                             'os': config_data['General'][0]['OS'],
-                            'osver': config_data['General'][0]['OsVersion']},
+                            'osver': config_data['General'][0]['OsVersion'],
 
                     }
 
