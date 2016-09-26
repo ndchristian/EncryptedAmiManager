@@ -214,7 +214,7 @@ if __name__ == '__main__':
     for account_id in account_ids:
 
         # STS allows you to connect to other accounts using assumed roles.
-        assumed_role = MAIN_STS_CLI.assume_rule(
+        assumed_role = MAIN_STS_CLI.assume_role(
             RoleArn="arn:aws:iam::%s:role/%s" % (account_id, role_name),
             RoleSessionName="AssumedRoleSession%s" % int(time.time()))
 
