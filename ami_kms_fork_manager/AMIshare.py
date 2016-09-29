@@ -40,26 +40,68 @@ def config():
     return read_data
 
 
+def recreate_image():
+    """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
+    an EC2 BillingProduct Code."""
+
+    new_image = MAIN_EC2_CLI.run_instances(ImageId=ami_id,
+                                           MinCount=1,
+                                           MaxCount=1,
+                                           InstanceType='t2.nano')
+
+    try:
+        MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=new_image['Instances'][0]['ImageId'])
+    except Exception as CreateInstanceErr:
+        MAIN_EC2_CLI.terminate_instances(InstanceIds=new_image['Instances'][0]['ImageId'])
+        raise CreateInstanceErr
+
+    MAIN_EC2_CLI.create_image(InstanceId=new_image['Instances'][0]['InstanceId'],
+                              Name='&s-%s ' % (MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name'],
+                                               int(time.time)))
+
+    try:
+        MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[new_image['Instances'][0]['InstanceId']])
+    except Exception as CreateImageErr:
+        raise CreateImageErr
+
+    MAIN_EC2_CLI.terminate_instances(InstanceIds=new_image['Instances'][0]['ImageId'])
+
+    return new_image['Instances'][0]['ImageId']
+
+
 def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
     print("Sharing AMI...")
+
+    new_ami_id = ami_id
     try:
         MAIN_EC2_CLI.modify_image_attribute(
             DryRun=True,
-            ImageId=ami_id,
+            ImageId=new_ami_id,
             OperationType='add',
             UserIds=account_ids,
             LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
-    except Exception as DryRunErr:
-        if DryRunErr.response['Error']['Code'] == 'DryRunOperation':
+    except Exception as Err:
+        if Err.response['Error']['Code'] == 'DryRunOperation':
             MAIN_EC2_CLI.modify_image_attribute(
                 ImageId=ami_id,
                 OperationType='add',
                 UserIds=account_ids,
                 LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
+
+        if Err.response['Error']['Code'] == 'InvalidRequest':
+            new_ami_id = recreate_image()
+            MAIN_EC2_CLI.modify_image_attribute(
+                ImageId=new_ami_id,
+                OperationType='add',
+                UserIds=account_ids,
+                LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
+
         else:
-            raise DryRunErr
+            raise Err
+
+    return new_ami_id
 
 
 def revoke_ami_access():
@@ -197,7 +239,6 @@ if __name__ == '__main__':
     ami_id = config_data['General'][0]['AMI_ID']
     role_name = config_data['General'][0]['RoleName']
     account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
-    image_details = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]
 
     ami_list = []
     json_info_list = []
@@ -205,11 +246,13 @@ if __name__ == '__main__':
     html_doc_list = []
 
     try:
-        share_ami()
+        certain_ami_id = share_ami()
     except botocore.exceptions.ClientError as e:
         print(e)
         print("Unable to share AMI with all accounts.")
         # revoke_ami_access() # May not be needed. Need to test how AWS handles an error here.
+
+    image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
 
     for account_id in account_ids:
 
@@ -279,12 +322,12 @@ if __name__ == '__main__':
                     })
 
                     j_data = {
-                            'awsaccountnumber': account_num,
-                            'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
-                            'sourceami': ami_id,
-                            'targetami': encrypted_ami['ImageId'],
-                            'os': config_data['General'][0]['OS'],
-                            'osver': config_data['General'][0]['OsVersion'],
+                        'awsaccountnumber': account_num,
+                        'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
+                        'sourceami': ami_id,
+                        'targetami': encrypted_ami['ImageId'],
+                        'os': config_data['General'][0]['OS'],
+                        'osver': config_data['General'][0]['OsVersion'],
 
                     }
 
