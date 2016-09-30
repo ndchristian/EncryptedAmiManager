@@ -245,12 +245,7 @@ if __name__ == '__main__':
     put_item_list = []
     html_doc_list = []
 
-    try:
-        certain_ami_id = share_ami()
-    except botocore.exceptions.ClientError as e:
-        print(e)
-        print("Unable to share AMI with all accounts.")
-        # revoke_ami_access() # May not be needed. Need to test how AWS handles an error here.
+    certain_ami_id = share_ami()
 
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
 
