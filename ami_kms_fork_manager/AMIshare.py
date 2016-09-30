@@ -257,12 +257,14 @@ if __name__ == '__main__':
                         image_description = 'None'
 
                     try:
-                        print(certain_ami_id)
+                        account_ami = recreate_image(ami=certain_ami_id, function_ec2_cli=ec2_cli)
+                        print(account_ami)
+
                         for data in config_data['Accounts']:
                             if account_id == data['AccountNumber']:
                                 encrypted_ami = ec2_cli.copy_image(
                                     SourceRegion=REGION,
-                                    SourceImageId=recreate_image(ami = certain_ami_id, function_ec2_cli= ec2_cli),
+                                    SourceImageId=recreate_image(ami = account_ami),
                                     Name=image_details['Images'][0]['Name'],
                                     Description=image_description,
                                     Encrypted=True,
@@ -276,7 +278,7 @@ if __name__ == '__main__':
                         # Gathers DB and json values
                         put_item_list.append({
                             'sourceami': ami_id,
-                            'targetami': encrypted_ami['ImageId'],
+                            'targetami': account_ami,
                             'targetregion': region_data,
                             'targetawsaccountnum': account_num,
                             'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
