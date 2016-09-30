@@ -86,7 +86,7 @@ def share_ami():
         ImageId=new_ami_id,
         OperationType='add',
         UserIds=account_ids,
-        LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
+        LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
 
     return new_ami_id
 
@@ -100,7 +100,7 @@ def revoke_ami_access():
             ImageId=ami_id,
             OperationType='remove',
             UserIds=account_ids,
-            LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
+            LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
     except botocore.exceptions.ClientError as Err:
         raise Err
 
