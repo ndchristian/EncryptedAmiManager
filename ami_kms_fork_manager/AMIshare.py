@@ -58,7 +58,7 @@ def recreate_image():
 
     original_image_name = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name']
 
-    MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['ImageId'],
+    MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
                               Name=u'&s-{0:s}'.format(original_image_name, int(time.time())))
 
     print("In recreate_image, 3")
