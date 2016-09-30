@@ -179,7 +179,7 @@ def create_html_doc(ami_details_list):
     return bucket_key
 
 
-def rollback(amis, put_items, html_keys, json_keys,error):
+def rollback(amis, put_items, html_keys, json_keys, error):
     """Rollbacks all AWS actions done in case something goes wrong."""
     print("Rolling back...")
     revoke_ami_access()
@@ -234,7 +234,7 @@ if __name__ == '__main__':
     put_item_list = []
     html_doc_list = []
 
-    certain_ami_id = share_ami()
+    certain_ami_id = recreate_image()
 
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
 
@@ -315,7 +315,7 @@ if __name__ == '__main__':
                         json_info_list.append(j_data)
                     except botocore.exceptions.ClientError as e:
                         print(e)
-                        rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[],error = e)
+                        rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[], error=e)
 
     # Creates HTML and JSON documents
     json_data_upload(json_data_list=json_info_list)
@@ -332,6 +332,6 @@ if __name__ == '__main__':
                      put_items=put_item_list,
                      html_keys=html_doc_list,
                      json_keys=json_doc_list,
-                     error = e)
+                     error=e)
 
     print("Done!")
