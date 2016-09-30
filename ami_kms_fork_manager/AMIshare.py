@@ -40,36 +40,36 @@ def config():
     return read_data
 
 
-def recreate_image():
+def recreate_image(ami,function_ec2_cli):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
-    temp_instance = MAIN_EC2_CLI.run_instances(ImageId=ami_id,
+    temp_instance = function_ec2_cli.run_instances(ImageId=ami,
                                                MinCount=1,
                                                MaxCount=1,
                                                InstanceType='t2.micro')
 
     try:
-        MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        MAIN_EC2_CLI.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        MAIN_EC2_CLI.get_waiter('instance_stopped').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        function_ec2_cli.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        function_ec2_cli.get_waiter('instance_stopped').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
     except Exception as CreateInstanceErr:
-        MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
         raise CreateInstanceErr
 
-    original_image_name = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name']
+    original_image_name = function_ec2_cli.describe_images(ImageIds=[ami])['Images'][0]['Name']
     new_image_name = "%s-%s" % (original_image_name, int(time.time()))
     new_image_name = new_image_name[:128]
 
-    new_image = MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
-                                          Name=new_image_name)
+    new_image = function_ec2_cli.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
+                                              Name=new_image_name)
 
     try:
-        MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
-        MAIN_EC2_CLI.get_waiter('image_available').wait(ImageIds = [new_image['ImageId']])
+        function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
+        function_ec2_cli.get_waiter('image_available').wait(ImageIds = [new_image['ImageId']])
     except Exception as CreateImageErr:
         raise CreateImageErr
 
-    MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
 
     return new_image['ImageId']
 
@@ -79,7 +79,7 @@ def share_ami():
 
     print("Sharing AMI...")
 
-    new_ami_id = recreate_image()
+    new_ami_id = recreate_image(ami = ami_id,function_ec2_cli=MAIN_EC2_CLI)
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
@@ -262,7 +262,7 @@ if __name__ == '__main__':
                             if account_id == data['AccountNumber']:
                                 encrypted_ami = ec2_cli.copy_image(
                                     SourceRegion=REGION,
-                                    SourceImageId=certain_ami_id,
+                                    SourceImageId=recreate_image(ami = certain_ami_id, function_ec2_cli= ec2_cli),
                                     Name=image_details['Images'][0]['Name'],
                                     Description=image_description,
                                     Encrypted=True,
