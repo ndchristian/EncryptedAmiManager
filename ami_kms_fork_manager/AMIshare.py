@@ -80,12 +80,14 @@ def share_ami():
 
     new_ami_id = ami_id
     try:
+        print("In share_ami, 1")
         MAIN_EC2_CLI.modify_image_attribute(
             ImageId=new_ami_id,
             OperationType='add',
             UserIds=account_ids,
             LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
     except Exception as Err:
+        print("IN share_ami, 2")
         try:
             new_ami_id = recreate_image()
             MAIN_EC2_CLI.modify_image_attribute(
@@ -95,7 +97,7 @@ def share_ami():
                 LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
         except botocore.exceptions.ClientError:
             raise Err
-
+    print("In share_ami, 3")
     return new_ami_id
 
 
@@ -233,7 +235,7 @@ if __name__ == '__main__':
     put_item_list = []
     html_doc_list = []
 
-    certain_ami_id = recreate_image()
+    certain_ami_id = share_ami()
 
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
 
