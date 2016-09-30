@@ -43,7 +43,6 @@ def config():
 def recreate_image():
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
-    print("In recreate_image, 1")
     temp_instance = MAIN_EC2_CLI.run_instances(ImageId=ami_id,
                                                MinCount=1,
                                                MaxCount=1,
@@ -54,26 +53,22 @@ def recreate_image():
     except Exception as CreateInstanceErr:
         MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
         raise CreateInstanceErr
-    print("In recreate_image, 2")
 
     original_image_name = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name']
     print("Orginal Name: %s" % original_image_name)
 
     new_image_name = "%s-%s" % (original_image_name, int(time.time()))
-    print(new_image_name)
     new_image_name = new_image_name[:128]
-    print(new_image_name)
 
     MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
                               Name= new_image_name)
 
-    print("In recreate_image, 3")
 
     try:
         MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[temp_instance['Instances'][0]['ImageId']])
     except Exception as CreateImageErr:
         raise CreateImageErr
-    print("In recreate_image, 4")
+
 
     MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
 
@@ -92,7 +87,7 @@ def share_ami():
             OperationType='add',
             UserIds=account_ids,
             LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
-    except botocore.exceptions.ClientError as Err:
+    except Exception as Err:
         print("Foobar")
         try:
             new_ami_id = recreate_image()
@@ -275,7 +270,7 @@ if __name__ == '__main__':
                         image_description = 'None'
 
                     try:
-                        print("Foo")
+                        print(certain_ami_id)
                         for data in config_data['Accounts']:
                             if account_id == data['AccountNumber']:
                                 encrypted_ami = ec2_cli.copy_image(
