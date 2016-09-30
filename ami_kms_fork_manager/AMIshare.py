@@ -50,25 +50,25 @@ def recreate_image():
                                                InstanceType='t2.micro')
 
     try:
-        MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['ImageId']])
+        MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
     except Exception as CreateInstanceErr:
-        MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['ImageId']])
+        MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
         raise CreateInstanceErr
     print("In recreate_image, 2")
 
-    MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
+    MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['ImageId'],
                               Name='&s-%s ' % (MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name'],
                                                int(time.time)))
 
     print("In recreate_image, 3")
 
     try:
-        MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[temp_instance['Instances'][0]['InstanceId']])
+        MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[temp_instance['Instances'][0]['ImageId']])
     except Exception as CreateImageErr:
         raise CreateImageErr
     print("In recreate_image, 4")
 
-    MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['ImageId']])
+    MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
 
     return temp_instance['Instances'][0]['ImageId']
 
