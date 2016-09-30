@@ -50,9 +50,9 @@ def recreate_image():
                                                InstanceType='t2.micro')
 
     try:
-        MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=temp_instance['Instances'][0]['ImageId'])
+        MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['ImageId']])
     except Exception as CreateInstanceErr:
-        MAIN_EC2_CLI.terminate_instances(InstanceIds=temp_instance['Instances'][0]['ImageId'])
+        MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['ImageId']])
         raise CreateInstanceErr
     print("In recreate_image, 2")
 
@@ -68,7 +68,7 @@ def recreate_image():
         raise CreateImageErr
     print("In recreate_image, 4")
 
-    MAIN_EC2_CLI.terminate_instances(InstanceIds=temp_instance['Instances'][0]['ImageId'])
+    MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['ImageId']])
 
     return temp_instance['Instances'][0]['ImageId']
 
