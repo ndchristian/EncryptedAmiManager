@@ -146,8 +146,8 @@ def create_html_doc(ami_details_list):
     <p>______________________</p>
     <h3>Encrypted Root AMIs</h3>
     <p>_____________________</p>
-    """ % (image_details['ImageId'],
-           image_details['Name'],
+    """ % (image_details['Images'][0]['ImageId'],
+           image_details['Images'][0]['Name'],
            config_data['General'][0]['OS'],
            image_desc,
            config_data['General'][0]['ReleaseDate'],
