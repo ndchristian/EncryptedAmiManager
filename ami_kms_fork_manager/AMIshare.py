@@ -77,19 +77,12 @@ def share_ami():
     new_ami_id = ami_id
     try:
         MAIN_EC2_CLI.modify_image_attribute(
-            DryRun=True,
             ImageId=new_ami_id,
             OperationType='add',
             UserIds=account_ids,
             LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
-    except Exception as Err:
-        if Err.response['Error']['Code'] == 'DryRunOperation':
-            MAIN_EC2_CLI.modify_image_attribute(
-                ImageId=ami_id,
-                OperationType='add',
-                UserIds=account_ids,
-                LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
-
+    except botocore.exceptions.ClientError as Err:
+        print(Err.response['Error']['Code'])
         if Err.response['Error']['Code'] == 'InvalidRequest':
             new_ami_id = recreate_image()
             MAIN_EC2_CLI.modify_image_attribute(
@@ -110,20 +103,12 @@ def revoke_ami_access():
     print("Revoking access to AMI...")
     try:
         MAIN_EC2_CLI.modify_image_attribute(
-            DryRun=True,
             ImageId=ami_id,
             OperationType='remove',
             UserIds=account_ids,
             LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
-    except Exception as DryRunErr:
-        if DryRunErr.response['Error']['Code'] == 'DryRunOperation':
-            MAIN_EC2_CLI.modify_image_attribute(
-                ImageId=ami_id,
-                OperationType='remove',
-                UserIds=account_ids,
-                LaunchPermission={'Remove': [dict(('UserId', account_number) for account_number in account_ids)]})
-        else:
-            raise DryRunErr
+    except botocore.exceptions.ClientError as Err:
+        raise Err
 
 
 def json_data_upload(json_data_list):
