@@ -65,6 +65,7 @@ def recreate_image():
 
     try:
         MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
+        MAIN_EC2_CLI.get_waiter('image_available').wait(ImageIds = [new_image['ImageId']])
     except Exception as CreateImageErr:
         raise CreateImageErr
 
