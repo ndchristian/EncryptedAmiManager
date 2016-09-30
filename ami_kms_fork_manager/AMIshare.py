@@ -81,6 +81,7 @@ def share_ami():
     print("Sharing AMI...")
 
     new_ami_id = recreate_image(ami = ami_id,function_ec2_cli=MAIN_EC2_CLI)
+    print({'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
