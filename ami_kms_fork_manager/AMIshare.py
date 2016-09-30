@@ -82,16 +82,14 @@ def share_ami():
             UserIds=account_ids,
             LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
     except botocore.exceptions.ClientError as Err:
-        print(Err.response['Error']['Code'])
-        if Err.response['Error']['Code'] == 'InvalidRequest':
+        try:
             new_ami_id = recreate_image()
             MAIN_EC2_CLI.modify_image_attribute(
                 ImageId=new_ami_id,
                 OperationType='add',
                 UserIds=account_ids,
                 LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
-
-        else:
+        except botocore.exceptions.ClientError:
             raise Err
 
     return new_ami_id
@@ -279,39 +277,38 @@ if __name__ == '__main__':
                                              'AMI_ID': encrypted_ami['ImageId']})
                             print("Created encrypted AMI for %s." % data['AccountNumber'])
 
+                        # Gathers DB and json values
+                        put_item_list.append({
+                            'sourceami': ami_id,
+                            'targetami': encrypted_ami['ImageId'],
+                            'targetregion': region_data,
+                            'targetawsaccountnum': account_num,
+                            'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
+                            'releasedate': config_data['General'][0]['ReleaseDate'],
+                            'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
+                            'stasisdate': config_data['General'][0]['StasisDate'],
+                            'os': config_data['General'][0]['OS'],
+                            'osver': config_data['General'][0]['OsVersion'],
+                            'comments:': config_data['General'][0]['Comments'],
+                            'jobnum': 'jobnum-%s' % int(time.time()),
+                            'epochtime': int(time.time()),
+                            'logicaldelete': 0
+                        })
+
+                        j_data = {
+                            'awsaccountnumber': account_num,
+                            'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
+                            'sourceami': ami_id,
+                            'targetami': encrypted_ami['ImageId'],
+                            'os': config_data['General'][0]['OS'],
+                            'osver': config_data['General'][0]['OsVersion'],
+
+                        }
+
+                        json_info_list.append(j_data)
                     except botocore.exceptions.ClientError as e:
                         print(e)
                         rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[])
-
-                    # Gathers DB and json values
-                    put_item_list.append({
-                        'sourceami': ami_id,
-                        'targetami': encrypted_ami['ImageId'],
-                        'targetregion': region_data,
-                        'targetawsaccountnum': account_num,
-                        'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
-                        'releasedate': config_data['General'][0]['ReleaseDate'],
-                        'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
-                        'stasisdate': config_data['General'][0]['StasisDate'],
-                        'os': config_data['General'][0]['OS'],
-                        'osver': config_data['General'][0]['OsVersion'],
-                        'comments:': config_data['General'][0]['Comments'],
-                        'jobnum': 'jobnum-%s' % int(time.time()),
-                        'epochtime': int(time.time()),
-                        'logicaldelete': 0
-                    })
-
-                    j_data = {
-                        'awsaccountnumber': account_num,
-                        'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
-                        'sourceami': ami_id,
-                        'targetami': encrypted_ami['ImageId'],
-                        'os': config_data['General'][0]['OS'],
-                        'osver': config_data['General'][0]['OsVersion'],
-
-                    }
-
-                    json_info_list.append(j_data)
 
     # Creates HTML and JSON documents
     json_data_upload(json_data_list=json_info_list)
