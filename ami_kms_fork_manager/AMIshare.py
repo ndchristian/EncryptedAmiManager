@@ -44,9 +44,10 @@ def recreate_image(ami,function_ec2_cli):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
     temp_instance = function_ec2_cli.run_instances(ImageId=ami,
-                                               MinCount=1,
-                                               MaxCount=1,
-                                               InstanceType='t2.micro')
+                                                   MinCount=1,
+                                                   MaxCount=1,
+                                                   InstanceType='t2.micro',
+                                                   IamInstanceProfile = {'Name': '10014ec2role'})
 
     try:
         function_ec2_cli.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
@@ -220,6 +221,7 @@ if __name__ == '__main__':
 
     ami_list = []
     json_info_list = []
+    json_doc_list = []
     put_item_list = []
     html_doc_list = []
 
@@ -309,7 +311,7 @@ if __name__ == '__main__':
                         rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[], error=e)
 
     # Creates HTML and JSON documents
-    json_data_upload(json_data_list=json_info_list)
+    json_doc_list.append(json_data_upload(json_data_list=json_info_list))
     html_doc_list.append(create_html_doc(ami_details_list=ami_list))
 
     # Adds entries into a DyanomoDB database
