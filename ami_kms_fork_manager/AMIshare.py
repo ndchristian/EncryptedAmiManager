@@ -151,7 +151,7 @@ def create_html_doc(ami_details_list):
            config_data['General'][0]['OS'],
            image_desc,
            config_data['General'][0]['ReleaseDate'],
-           'arn:aws:ec2:%s::image/%s' % (REGION, image_details['ImageId']))
+           'arn:aws:ec2:%s::image/%s' % (REGION, image_details['Images'][0]['ImageId']))
 
     for ami_details in ami_details_list:
         s3_input += "<p>Company_account_Number: %s | AWS_Account_Number: %s | AMI: %s" \
