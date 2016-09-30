@@ -264,7 +264,7 @@ if __name__ == '__main__':
                             if account_id == data['AccountNumber']:
                                 encrypted_ami = ec2_cli.copy_image(
                                     SourceRegion=REGION,
-                                    SourceImageId=recreate_image(ami = account_ami),
+                                    SourceImageId=account_ami,
                                     Name=image_details['Images'][0]['Name'],
                                     Description=image_description,
                                     Encrypted=True,
