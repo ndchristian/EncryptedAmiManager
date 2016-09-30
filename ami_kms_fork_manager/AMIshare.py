@@ -43,7 +43,7 @@ def config():
 def recreate_image():
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
-
+    print("In recreate_image, 1")
     temp_instance = MAIN_EC2_CLI.run_instances(ImageId=ami_id,
                                                MinCount=1,
                                                MaxCount=1,
@@ -54,15 +54,19 @@ def recreate_image():
     except Exception as CreateInstanceErr:
         MAIN_EC2_CLI.terminate_instances(InstanceIds=temp_instance['Instances'][0]['ImageId'])
         raise CreateInstanceErr
+    print("In recreate_image, 2")
 
     MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
                               Name='&s-%s ' % (MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name'],
                                                int(time.time)))
 
+    print("In recreate_image, 3")
+
     try:
         MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[temp_instance['Instances'][0]['InstanceId']])
     except Exception as CreateImageErr:
         raise CreateImageErr
+    print("In recreate_image, 4")
 
     MAIN_EC2_CLI.terminate_instances(InstanceIds=temp_instance['Instances'][0]['ImageId'])
 
@@ -174,7 +178,7 @@ def create_html_doc(ami_details_list):
     return bucket_key
 
 
-def rollback(amis, put_items, html_keys, json_keys):
+def rollback(amis, put_items, html_keys, json_keys,error):
     """Rollbacks all AWS actions done in case something goes wrong."""
     print("Rolling back...")
     revoke_ami_access()
@@ -214,6 +218,7 @@ def rollback(amis, put_items, html_keys, json_keys):
             rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
 
     print("Finished rolling back.")
+    raise error
 
 
 if __name__ == '__main__':
@@ -308,7 +313,7 @@ if __name__ == '__main__':
                         json_info_list.append(j_data)
                     except botocore.exceptions.ClientError as e:
                         print(e)
-                        rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[])
+                        rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[],error = e)
 
     # Creates HTML and JSON documents
     json_data_upload(json_data_list=json_info_list)
@@ -321,6 +326,10 @@ if __name__ == '__main__':
             table.put_item(put_item)
         except Exception as e:  # General exception until a more specific, not even sure if it's needed
             print(e)
-            rollback(amis=ami_list, put_items=put_item_list, html_keys=html_doc_list, json_keys=json_doc_list)
+            rollback(amis=ami_list,
+                     put_items=put_item_list,
+                     html_keys=html_doc_list,
+                     json_keys=json_doc_list,
+                     error = e)
 
     print("Done!")
