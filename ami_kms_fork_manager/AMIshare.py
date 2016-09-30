@@ -60,17 +60,17 @@ def recreate_image():
     new_image_name = "%s-%s" % (original_image_name, int(time.time()))
     new_image_name = new_image_name[:128]
 
-    MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
-                              Name=new_image_name)
+    new_image = MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
+                                          Name=new_image_name)
 
     try:
-        MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[temp_instance['Instances'][0]['ImageId']])
+        MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
     except Exception as CreateImageErr:
         raise CreateImageErr
 
     MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
 
-    return temp_instance['Instances'][0]['ImageId']
+    return new_image['ImageId']
 
 
 def share_ami():
