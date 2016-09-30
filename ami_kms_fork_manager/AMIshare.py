@@ -44,29 +44,29 @@ def recreate_image():
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
 
-    new_image = MAIN_EC2_CLI.run_instances(ImageId=ami_id,
-                                           MinCount=1,
-                                           MaxCount=1,
-                                           InstanceType='t2.nano')
+    temp_instance = MAIN_EC2_CLI.run_instances(ImageId=ami_id,
+                                               MinCount=1,
+                                               MaxCount=1,
+                                               InstanceType='t2.nano')
 
     try:
-        MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=new_image['Instances'][0]['ImageId'])
+        MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=temp_instance['Instances'][0]['ImageId'])
     except Exception as CreateInstanceErr:
-        MAIN_EC2_CLI.terminate_instances(InstanceIds=new_image['Instances'][0]['ImageId'])
+        MAIN_EC2_CLI.terminate_instances(InstanceIds=temp_instance['Instances'][0]['ImageId'])
         raise CreateInstanceErr
 
-    MAIN_EC2_CLI.create_image(InstanceId=new_image['Instances'][0]['InstanceId'],
+    MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
                               Name='&s-%s ' % (MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name'],
                                                int(time.time)))
 
     try:
-        MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[new_image['Instances'][0]['InstanceId']])
+        MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[temp_instance['Instances'][0]['InstanceId']])
     except Exception as CreateImageErr:
         raise CreateImageErr
 
-    MAIN_EC2_CLI.terminate_instances(InstanceIds=new_image['Instances'][0]['ImageId'])
+    MAIN_EC2_CLI.terminate_instances(InstanceIds=temp_instance['Instances'][0]['ImageId'])
 
-    return new_image['Instances'][0]['ImageId']
+    return temp_instance['Instances'][0]['ImageId']
 
 
 def share_ami():
