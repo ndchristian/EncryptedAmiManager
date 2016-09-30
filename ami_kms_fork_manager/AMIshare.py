@@ -86,6 +86,7 @@ def share_ami():
             UserIds=account_ids,
             LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
     except botocore.exceptions.ClientError as Err:
+        print("Foobar")
         try:
             new_ami_id = recreate_image()
             MAIN_EC2_CLI.modify_image_attribute(
@@ -218,7 +219,7 @@ def rollback(amis, put_items, html_keys, json_keys,error):
             rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
 
     print("Finished rolling back.")
-    raise error.response['Error']['Code']
+    raise error
 
 
 if __name__ == '__main__':
@@ -267,6 +268,7 @@ if __name__ == '__main__':
                         image_description = 'None'
 
                     try:
+                        print("Foo")
                         for data in config_data['Accounts']:
                             if account_id == data['AccountNumber']:
                                 encrypted_ami = ec2_cli.copy_image(
