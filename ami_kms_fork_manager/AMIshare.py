@@ -50,25 +50,23 @@ def recreate_image():
 
     try:
         MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        MAIN_EC2_CLI.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        MAIN_EC2_CLI.get_waiter('instance_stopped').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
     except Exception as CreateInstanceErr:
         MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
         raise CreateInstanceErr
 
     original_image_name = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name']
-    print("Orginal Name: %s" % original_image_name)
-
     new_image_name = "%s-%s" % (original_image_name, int(time.time()))
     new_image_name = new_image_name[:128]
 
     MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
-                              Name= new_image_name)
-
+                              Name=new_image_name)
 
     try:
         MAIN_EC2_CLI.get_waiter('image_exists').wait(ImageIds=[temp_instance['Instances'][0]['ImageId']])
     except Exception as CreateImageErr:
         raise CreateImageErr
-
 
     MAIN_EC2_CLI.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
 
@@ -88,7 +86,6 @@ def share_ami():
             UserIds=account_ids,
             LaunchPermission={'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
     except Exception as Err:
-        print("Foobar")
         try:
             new_ami_id = recreate_image()
             MAIN_EC2_CLI.modify_image_attribute(
