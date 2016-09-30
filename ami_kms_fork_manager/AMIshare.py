@@ -57,8 +57,10 @@ def recreate_image():
     print("In recreate_image, 2")
 
     original_image_name = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name']
+    print("Orginal Name: %s" % original_image_name)
 
-    new_image_name = u'&s{0:s}'.format(original_image_name, int(time.time()))
+    new_image_name = "%s-%s"(original_image_name, int(time.time()))
+    print(new_image_name)
     new_image_name = new_image_name[:128]
     print(new_image_name)
 
