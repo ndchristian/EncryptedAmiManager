@@ -58,8 +58,9 @@ def recreate_image():
 
     original_image_name = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])['Images'][0]['Name']
 
-    new_image_name = u'&s_{0:s}'.format(original_image_name, int(time.time()))
+    new_image_name = u'&s{0:s}'.format(original_image_name, int(time.time()))
     new_image_name = new_image_name[:128]
+    print(new_image_name)
 
     MAIN_EC2_CLI.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
                               Name= new_image_name)
