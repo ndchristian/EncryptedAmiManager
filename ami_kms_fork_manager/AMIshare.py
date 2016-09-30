@@ -218,7 +218,7 @@ def rollback(amis, put_items, html_keys, json_keys,error):
             rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
 
     print("Finished rolling back.")
-    raise error
+    raise error.response['Error']['Code']
 
 
 if __name__ == '__main__':
@@ -271,7 +271,7 @@ if __name__ == '__main__':
                             if account_id == data['AccountNumber']:
                                 encrypted_ami = ec2_cli.copy_image(
                                     SourceRegion=REGION,
-                                    SourceImageId=ami_id,
+                                    SourceImageId=certain_ami_id,
                                     Name=image_details['Images'][0]['Name'],
                                     Description=image_description,
                                     Encrypted=True,
