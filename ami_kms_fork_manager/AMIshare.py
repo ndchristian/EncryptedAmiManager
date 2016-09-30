@@ -47,7 +47,7 @@ def recreate_image():
     temp_instance = MAIN_EC2_CLI.run_instances(ImageId=ami_id,
                                                MinCount=1,
                                                MaxCount=1,
-                                               InstanceType='t2.nano')
+                                               InstanceType='t2.micro')
 
     try:
         MAIN_EC2_CLI.get_waiter('instance_running').wait(InstanceIds=temp_instance['Instances'][0]['ImageId'])
