@@ -259,7 +259,7 @@ if __name__ == '__main__':
                     ec2_cli = session.client('ec2', region_name=region_data)
 
                     try:
-                        image_description = image_details['Description']
+                        image_description = image_details['Images'][0]['Description']
                     except KeyError:
                         image_description = 'None'
 
@@ -269,7 +269,7 @@ if __name__ == '__main__':
                                 encrypted_ami = ec2_cli.copy_image(
                                     SourceRegion=REGION,
                                     SourceImageId=ami_id,
-                                    Name=image_details['Name'],
+                                    Name=image_details['Images'][0]['Name'],
                                     Description=image_description,
                                     Encrypted=True,
                                     KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
