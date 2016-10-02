@@ -40,37 +40,80 @@ def config():
     return read_data
 
 
-def recreate_image(ami,function_ec2_cli):
+def create_vpc(function_ec2_cli):
+    """Creates a temporary VPC"""
+
+    print("\tCreating temporary VPC...")
+    temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
+    MAIN_EC2_CLI.get_waiter('vpc_exists')
+    MAIN_EC2_CLI.get_waiter('vpc_available')
+    print("\tCreated VPC: %s" % temp_vpc['Vpc'][0]['VpcId'])
+
+    return temp_vpc['Vpc'][0]['VpcId']
+
+
+def create_sg(function_ec2_cli, vpc_id):
+    """Creates a temporary security group"""
+    try:
+        print("\tCreating temporary security group...")
+        temp_sg = function_ec2_cli.create_security_group(GroupName='TempSG-%s' % int(time.time()),
+                                                         Description='Temporary ami_kms_fork_manager security group',
+                                                         VpcId=vpc_id)
+
+        print("\tCreated temporary security group: %s" % temp_sg['GroupId'])
+    except botocore.exceptions.ClientError as SGerror:
+        function_ec2_cli.delete_vpc(VpcId=vpc_id)
+        raise SGerror
+
+
+def recreate_image(ami, function_ec2_cli, securitygroup_id):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
-    temp_instance = function_ec2_cli.run_instances(ImageId=ami,
-                                                   MinCount=1,
-                                                   MaxCount=1,
-                                                   InstanceType='t2.micro',
-                                                   IamInstanceProfile = {'Name': '10014ec2role'})
+
+    temp_sg_details = function_ec2_cli.describe_security_groups(GroupId=securitygroup_id)
 
     try:
+        print("\tCreating temporary instance...")
+        temp_instance = function_ec2_cli.run_instances(ImageId=ami,
+                                                       MinCount=1,
+                                                       MaxCount=1,
+                                                       SecurityGroupIds=[securitygroup_id],
+                                                       InstanceType='t2.micro',
+                                                       IamInstanceProfile={'Name': '10014ec2role'})
+
         function_ec2_cli.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        print("\tInstance is now running, stopping instance...")
         function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
         function_ec2_cli.get_waiter('instance_stopped').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-    except Exception as CreateInstanceErr:
-        function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        print("\tInstance: %s has been stopped " % temp_instance['Instances'][0]['InstanceId'])
+    except botocore.exceptions.ClientError as CreateInstanceErr:
+        function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+        function_ec2_cli.delete_security_group(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
         raise CreateInstanceErr
 
     original_image_name = function_ec2_cli.describe_images(ImageIds=[ami])['Images'][0]['Name']
     new_image_name = "%s-%s" % (original_image_name, int(time.time()))
-    new_image_name = new_image_name[:128]
 
+    print("\tCreating image from Instance ID: %s..." % temp_instance['Instances'][0]['InstanceId'])
     new_image = function_ec2_cli.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
-                                              Name=new_image_name)
+                                              Name=new_image_name[:128])
 
     try:
         function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
-        function_ec2_cli.get_waiter('image_available').wait(ImageIds = [new_image['ImageId']])
-    except Exception as CreateImageErr:
+        function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
+
+        print("\tImage: %s has been created and is availble" % new_image['ImageId'])
+
+    except botocore.exceptions.ClientError as CreateImageErr:
         raise CreateImageErr
 
+    try:
         function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+        function_ec2_cli.delete_security_group(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+    except botocore.exceptions.ClientError as DeletionError:
+        print("\tSomething went wrong when deleteing temporary objects...")
+        raise DeletionError
 
     return new_image['ImageId']
 
@@ -80,8 +123,10 @@ def share_ami():
 
     print("Sharing AMI...")
 
-    new_ami_id = recreate_image(ami = ami_id,function_ec2_cli=MAIN_EC2_CLI)
-    print({'Add': [dict(('UserId', account_number) for account_number in account_ids)]})
+    new_ami_id = recreate_image(ami=ami_id,
+                                function_ec2_cli=MAIN_EC2_CLI,
+                                securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
+                                                           vpc_id=create_vpc(function_ec2_cli=MAIN_EC2_CLI)))
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
@@ -101,8 +146,8 @@ def revoke_ami_access():
             OperationType='remove',
             UserIds=account_ids,
             LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
-    except botocore.exceptions.ClientError as Err:
-        raise Err
+    except botocore.exceptions.ClientError as ModifyImageError:
+        raise ModifyImageError
 
 
 def json_data_upload(json_data_list):
@@ -116,6 +161,8 @@ def json_data_upload(json_data_list):
                                                sort_keys=True,
                                                indent=4,
                                                separators=(',', ': ')))
+        print("Created JSON output: %s" % bucket_key.split("/")[-1])
+
     return bucket_key
 
 
@@ -166,6 +213,7 @@ def create_html_doc(ami_details_list):
     MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
                            Key=bucket_key,
                            Body=s3_input)
+    print("Created HTML output: %s" % bucket_key.split("/")[-1])
 
     return bucket_key
 
@@ -226,6 +274,17 @@ if __name__ == '__main__':
     put_item_list = []
     html_doc_list = []
 
+    for bucket in [config_data['General'][0]['JSON_S3bucket'], config_data['General'][0]['HTML_S3bucket']]:
+        try:
+            MAIN_S3_CLI.head_bucket(Bucket=bucket)
+        except botocore.exceptions.ClientError as NoBucket:
+            raise NoBucket
+
+    try:
+        MAIN_DYNA_CLI.describe_table(TableName=config_data[0]['DynamoDBTable'])
+    except botocore.exceptions.ClientError as NoTable:
+        raise NoTable
+
     certain_ami_id = share_ami()
 
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
@@ -250,6 +309,7 @@ if __name__ == '__main__':
         # Connects to each region and copies the AMI there.
         for acc_data in config_data['Accounts']:
             if account_id == acc_data['AccountNumber']:
+                print("%s:" % account_id)
                 for region_data in acc_data['Regions']:
 
                     ec2_cli = session.client('ec2', region_name=region_data)
@@ -260,8 +320,11 @@ if __name__ == '__main__':
                         image_description = 'None'
 
                     try:
-                        account_ami = recreate_image(ami=certain_ami_id, function_ec2_cli=ec2_cli)
-                        print(account_ami)
+                        account_ami = recreate_image(ami=certain_ami_id,
+                                                     function_ec2_cli=ec2_cli,
+                                                     securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
+                                                                                vpc_id=create_vpc(
+                                                                                    function_ec2_cli=ec2_cli)))
 
                         for data in config_data['Accounts']:
                             if account_id == data['AccountNumber']:
@@ -308,7 +371,6 @@ if __name__ == '__main__':
 
                         json_info_list.append(j_data)
                     except botocore.exceptions.ClientError as e:
-                        print(e)
                         rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[], error=e)
 
     # Creates HTML and JSON documents
@@ -320,6 +382,7 @@ if __name__ == '__main__':
         try:
             table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
             table.put_item(put_item)
+            print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
         except Exception as e:  # General exception until a more specific, not even sure if it's needed
             print(e)
             rollback(amis=ami_list,
