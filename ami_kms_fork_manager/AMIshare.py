@@ -45,8 +45,8 @@ def create_vpc(function_ec2_cli):
 
     print("\tCreating temporary VPC...")
     temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
-    MAIN_EC2_CLI.get_waiter('vpc_exists')
-    MAIN_EC2_CLI.get_waiter('vpc_available')
+    function_ec2_cli.get_waiter('vpc_exists')
+    function_ec2_cli.get_waiter('vpc_available')
     print("\tCreated VPC: %s" % temp_vpc['Vpc'][0]['VpcId'])
 
     return temp_vpc['Vpc'][0]['VpcId']
