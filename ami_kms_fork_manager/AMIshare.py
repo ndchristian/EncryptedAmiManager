@@ -47,7 +47,6 @@ def create_vpc(function_ec2_cli):
         print("\tCreating temporary VPC...")
         temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
         function_ec2_cli.get_waiter('vpc_available').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
-        function_ec2_cli.get_waiter('vpc_exists').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
         print("\tCreated VPC: %s" % temp_vpc['Vpc'][0]['VpcId'])
     except botocore.exceptions.ClientError as VpcError:
         function_ec2_cli.delete_vpc(VpcId = [temp_vpc['Vpc']['VpcId']])
