@@ -64,7 +64,8 @@ def create_subnet(function_ec2_cli, vpc_id):
 
     try:
         print("\tCreating temporary subnet...")
-        temp_subnet = function_ec2_cli.create_subnet(VpcId=vpc_id)
+        temp_subnet = function_ec2_cli.create_subnet(VpcId=vpc_id,
+                                                     CidrBlock='10.0.1.0/16')
         function_ec2_cli.get_waiter('subnet_available').wait(SubnetIds=[temp_subnet['Subnet']['SubnetId']])
         print("\tCreated subnet: %s" % temp_subnet['Subnet']['SubnetId'])
 
