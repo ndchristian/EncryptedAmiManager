@@ -59,6 +59,25 @@ def create_vpc(function_ec2_cli):
                  error=VpcError)
 
 
+def create_subnet(function_ec2_cli, vpc_id):
+    """Creates a temporary subnet"""
+
+    try:
+        print("\tCreating temporary subnet...")
+        temp_subnet = function_ec2_cli.create_subnet(VpcId=vpc_id)
+        function_ec2_cli.get_waiter('subnet_available').wait(SubnetIds=[temp_subnet['Subnet']['SubnetId']])
+        print("\tCreated subnet: %s" % temp_subnet['Subnet']['SubnetId'])
+
+        return temp_subnet['Subnet']['SubnetId']
+
+    except botocore.exceptions.ClientError as SubnetError:
+        rollback(amis=ami_list,
+                 put_items=put_item_list,
+                 html_keys=html_doc_list,
+                 json_keys=json_doc_list,
+                 error=SubnetError)
+
+
 def create_sg(function_ec2_cli, vpc_id):
     """Creates a temporary security group"""
     try:
@@ -92,6 +111,10 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id):
                                                        MinCount=1,
                                                        MaxCount=1,
                                                        SecurityGroupIds=[securitygroup_id],
+                                                       SubnetId=create_subnet(function_ec2_cli=function_ec2_cli,
+                                                                              vpc_id=
+                                                                              temp_sg_details['SecurityGroups'][0][
+                                                                                  'VpcId']),
                                                        InstanceType='t2.micro',
                                                        IamInstanceProfile={'Name': '10014ec2role'})
 
