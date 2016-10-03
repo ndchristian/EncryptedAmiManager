@@ -42,22 +42,32 @@ def config():
 
 def create_vpc(function_ec2_cli):
     """Creates a temporary VPC"""
-
+    waiter_bool = False
+    counter = 0
     try:
         print("\tCreating temporary VPC...")
         temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
-        function_ec2_cli.get_waiter('vpc_exists').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
+
+        while not waiter_bool:
+            try:
+                function_ec2_cli.describe_vpcs(VpcIds=[temp_vpc['Vpc']['VpcId']])
+                waiter_bool = True
+            except botocore.exceptions.ClientError as WaiterError:
+                if counter == 5:
+                    print("Something has gone wrong when creating the VPC: %s" % temp_vpc['Vpc']['VpcId'])
+                    raise WaiterError
+                else:
+                    counter += 1
+                    time.sleep(1)
+                    pass
+
         function_ec2_cli.get_waiter('vpc_available').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
         print("\tCreated VPC: %s" % temp_vpc['Vpc']['VpcId'])
 
         return temp_vpc['Vpc']['VpcId']
 
     except botocore.exceptions.ClientError as VpcError:
-        rollback(amis=ami_list,
-                 put_items=put_item_list,
-                 html_keys=html_doc_list,
-                 json_keys=json_doc_list,
-                 error=VpcError)
+        raise VpcError
 
 
 def create_subnet(function_ec2_cli, vpc_id):
