@@ -72,6 +72,7 @@ def create_subnet(function_ec2_cli, vpc_id):
         return temp_subnet['Subnet']['SubnetId']
 
     except botocore.exceptions.ClientError as SubnetError:
+        function_ec2_cli.delete_vpc(VpcId=vpc_id)
         rollback(amis=ami_list,
                  put_items=put_item_list,
                  html_keys=html_doc_list,
