@@ -84,7 +84,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
 
-    temp_sg_details = function_ec2_cli.describe_security_groups(GroupId=securitygroup_id)
+    temp_sg_details = function_ec2_cli.describe_security_groups(GroupIds=[securitygroup_id])
 
     try:
         print("\tCreating temporary instance...")
@@ -123,7 +123,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id):
 
     try:
         function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+        function_ec2_cli.delete_security_group(GroupIds=securitygroup_id)
         function_ec2_cli.delete_security_group(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
     except botocore.exceptions.ClientError as DeletionError:
         print("\tSomething went wrong when deleteing temporary objects...")
