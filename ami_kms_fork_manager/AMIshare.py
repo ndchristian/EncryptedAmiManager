@@ -173,8 +173,8 @@ def share_ami():
     new_ami_id = recreate_image(ami=ami_id,
                                 function_ec2_cli=MAIN_EC2_CLI,
                                 securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
-                                                           vpc_id=vpc_id,
-                                subnet_id= subnet_id))
+                                                           vpc_id=vpc_id),
+                                subnet_id= subnet_id)
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
