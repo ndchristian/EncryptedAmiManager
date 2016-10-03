@@ -128,6 +128,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id):
         print("\tInstance: %s has been stopped " % temp_instance['Instances'][0]['InstanceId'])
     except botocore.exceptions.ClientError as CreateInstanceErr:
         function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+        function_ec2_cli.delete_subnet(SubnetId = temp_instance['Instances'][0]['SubnetId'])
         function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
 
         rollback(amis=ami_list,
@@ -154,7 +155,8 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id):
 
     try:
         function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        function_ec2_cli.delete_security_group(GroupIds=securitygroup_id)
+        function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+        function_ec2_cli.delete_subnet(SubnetId = temp_instance['Instances'][0]['SubnetId'])
         function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
     except botocore.exceptions.ClientError as DeletionError:
         print("\tSomething went wrong when deleteing temporary objects...")
@@ -336,7 +338,6 @@ if __name__ == '__main__':
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
 
     for account_id in account_ids:
-
         # STS allows you to connect to other accounts using assumed roles.
         assumed_role = MAIN_STS_CLI.assume_role(
             RoleArn="arn:aws:iam::%s:role/%s" % (account_id, role_name),
