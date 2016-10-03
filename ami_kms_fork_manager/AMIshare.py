@@ -458,12 +458,12 @@ if __name__ == '__main__':
             table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
             table.put_item(put_item)
             print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
-        except Exception as e:  # General exception until a more specific, not even sure if it's needed
-            print(e)
+        except botocore.exceptions.ClientError as TableError:
             rollback(amis=ami_list,
                      put_items=put_item_list,
                      html_keys=html_doc_list,
                      json_keys=json_doc_list,
-                     error=e)
-
+                     error=TableError)
+    print("Failed Accounts: %s" % FAILED_ACCOUNTS)
+    print("Stuck instances: %s" % STUCK_INSTANCES)
     print("Done!")
