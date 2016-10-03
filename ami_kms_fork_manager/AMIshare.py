@@ -52,7 +52,11 @@ def create_vpc(function_ec2_cli):
         return temp_vpc['Vpc']['VpcId']
 
     except botocore.exceptions.ClientError as VpcError:
-        raise VpcError
+        rollback(amis=ami_list,
+                 put_items=put_item_list,
+                 html_keys=html_doc_list,
+                 json_keys=json_doc_list,
+                 error=VpcError)
 
 
 def create_sg(function_ec2_cli, vpc_id):
@@ -64,10 +68,16 @@ def create_sg(function_ec2_cli, vpc_id):
                                                          VpcId=vpc_id)
 
         print("\tCreated temporary security group: %s" % temp_sg['GroupId'])
+
+        return temp_sg['GroupId']
+
     except botocore.exceptions.ClientError as SGerror:
         function_ec2_cli.delete_vpc(VpcId=vpc_id)
-        raise SGerror
-    return temp_sg['GroupId']
+        rollback(amis=ami_list,
+                 put_items=put_item_list,
+                 html_keys=html_doc_list,
+                 json_keys=json_doc_list,
+                 error=SGerror)
 
 
 def recreate_image(ami, function_ec2_cli, securitygroup_id):
