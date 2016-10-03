@@ -125,7 +125,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id,subnet_id):
         print("\tInstance: %s has been stopped " % temp_instance['Instances'][0]['InstanceId'])
     except botocore.exceptions.ClientError as CreateInstanceErr:
         function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-        function_ec2_cli.delete_subnet(SubnetId = temp_instance['Instances'][0]['SubnetId'])
+        function_ec2_cli.delete_subnet(SubnetId = subnet_id)
         function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
 
         rollback(amis=ami_list,
