@@ -50,9 +50,8 @@ def create_vpc(function_ec2_cli):
         print("\tCreated VPC: %s" % temp_vpc['Vpc']['VpcId'])
 
         return temp_vpc['Vpc']['VpcId']
-    
+
     except botocore.exceptions.ClientError as VpcError:
-        function_ec2_cli.delete_vpc(VpcId=[temp_vpc['Vpc']['VpcId']])
         raise VpcError
 
 
