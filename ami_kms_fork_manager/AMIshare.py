@@ -102,7 +102,7 @@ def create_sg(function_ec2_cli, vpc_id):
                  error=SGerror)
 
 
-def recreate_image(ami, function_ec2_cli, securitygroup_id):
+def recreate_image(ami, function_ec2_cli, securitygroup_id,subnet_id):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
 
@@ -114,10 +114,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id):
                                                        MinCount=1,
                                                        MaxCount=1,
                                                        SecurityGroupIds=[securitygroup_id],
-                                                       SubnetId=create_subnet(function_ec2_cli=function_ec2_cli,
-                                                                              vpc_id=
-                                                                              temp_sg_details['SecurityGroups'][0][
-                                                                                  'VpcId']),
+                                                       SubnetId=subnet_id,
                                                        InstanceType='t2.micro',
                                                        IamInstanceProfile={'Name': '10014ec2role'})
 
@@ -169,11 +166,15 @@ def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
     print("Sharing AMI...")
+    vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
+    subnet_id =create_subnet(function_ec2_cli=MAIN_EC2_CLI,vpc_id= vpc_id)
+
 
     new_ami_id = recreate_image(ami=ami_id,
                                 function_ec2_cli=MAIN_EC2_CLI,
                                 securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
-                                                           vpc_id=create_vpc(function_ec2_cli=MAIN_EC2_CLI)))
+                                                           vpc_id=vpc_id,
+                                subnet_id= subnet_id))
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
@@ -367,11 +368,14 @@ if __name__ == '__main__':
                         image_description = 'None'
 
                     try:
+                        vpc_id = create_vpc(function_ec2_cli=ec2_cli)
+                        subnet_id = create_subnet(function_ec2_cli=ec2_cli,vpc_id=vpc_id)
+
                         account_ami = recreate_image(ami=certain_ami_id,
                                                      function_ec2_cli=ec2_cli,
                                                      securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
-                                                                                vpc_id=create_vpc(
-                                                                                    function_ec2_cli=ec2_cli)))
+                                                                                vpc_id=vpc_id),
+                                                     subnet_id=subnet_id)
 
                         for data in config_data['Accounts']:
                             if account_id == data['AccountNumber']:
