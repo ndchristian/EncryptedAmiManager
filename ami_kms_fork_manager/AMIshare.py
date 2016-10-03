@@ -242,7 +242,7 @@ def rollback(amis, put_items, html_keys, json_keys, error):
     for rollback_account in amis:
         # STS allows you to connect to other accounts using assumed roles.
 
-        rollback_assume_role = MAIN_STS_CLI.assume_rule(
+        rollback_assume_role = MAIN_STS_CLI.assume_role(
             RoleArn="arn:aws:iam::%s:role/%s" % (rollback_account['AccountNumber'], role_name),
             RoleSessionName="AssumedRoleSession%s" % int(time.time()))
 
