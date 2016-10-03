@@ -31,6 +31,9 @@ MAIN_S3_CLI = boto3.client('s3')
 
 REGION = boto3.session.Session().region_name
 
+STUCK_INSTANCES = []
+FAILED_ACCOUNTS = []
+
 
 def config():
     """Grabs all data from the config file"""
@@ -60,12 +63,12 @@ def create_vpc(function_ec2_cli):
                  error=VpcError)
 
 
-def create_subnet(function_ec2_cli, vpc_id):
+def create_subnet(function_ec2_cli, funct_vpc_id):
     """Creates a temporary subnet"""
 
     try:
         print("\tCreating temporary subnet...")
-        temp_subnet = function_ec2_cli.create_subnet(VpcId=vpc_id,
+        temp_subnet = function_ec2_cli.create_subnet(VpcId=funct_vpc_id,
                                                      CidrBlock='10.0.1.0/16')
         function_ec2_cli.get_waiter('subnet_available').wait(SubnetIds=[temp_subnet['Subnet']['SubnetId']])
         print("\tCreated subnet: %s" % temp_subnet['Subnet']['SubnetId'])
@@ -73,7 +76,7 @@ def create_subnet(function_ec2_cli, vpc_id):
         return temp_subnet['Subnet']['SubnetId']
 
     except botocore.exceptions.ClientError as SubnetError:
-        function_ec2_cli.delete_vpc(VpcId=vpc_id)
+        function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
         rollback(amis=ami_list,
                  put_items=put_item_list,
                  html_keys=html_doc_list,
@@ -81,20 +84,20 @@ def create_subnet(function_ec2_cli, vpc_id):
                  error=SubnetError)
 
 
-def create_sg(function_ec2_cli, vpc_id):
+def create_sg(function_ec2_cli, funct_vpc_id):
     """Creates a temporary security group"""
     try:
         print("\tCreating temporary security group...")
         temp_sg = function_ec2_cli.create_security_group(GroupName='TempSG-%s' % int(time.time()),
                                                          Description='Temporary ami_kms_fork_manager security group',
-                                                         VpcId=vpc_id)
+                                                         VpcId=funct_vpc_id)
 
         print("\tCreated temporary security group: %s" % temp_sg['GroupId'])
 
         return temp_sg['GroupId']
 
     except botocore.exceptions.ClientError as SGerror:
-        function_ec2_cli.delete_vpc(VpcId=vpc_id)
+        function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
         rollback(amis=ami_list,
                  put_items=put_item_list,
                  html_keys=html_doc_list,
@@ -102,80 +105,99 @@ def create_sg(function_ec2_cli, vpc_id):
                  error=SGerror)
 
 
-def recreate_image(ami, function_ec2_cli, securitygroup_id, subnet_id):
+def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, funct_account_id):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
+    instance_bool = False
+    instance_counter = 0
 
     temp_sg_details = function_ec2_cli.describe_security_groups(GroupIds=[securitygroup_id])
 
-    try:
-        print("\tCreating temporary instance...")
-        temp_instance = function_ec2_cli.run_instances(ImageId=ami,
-                                                       MinCount=1,
-                                                       MaxCount=1,
-                                                       SecurityGroupIds=[securitygroup_id],
-                                                       SubnetId=subnet_id,
-                                                       InstanceType='t2.micro',
-                                                       IamInstanceProfile={'Name': '10014ec2role'})
+    while not instance_bool:
+        try:
+            print("\tCreating temporary instance...")
+            temp_instance = function_ec2_cli.run_instances(ImageId=ami,
+                                                           MinCount=1,
+                                                           MaxCount=1,
+                                                           SecurityGroupIds=[securitygroup_id],
+                                                           SubnetId=funct_subnet_id,
+                                                           InstanceType='t2.micro',
+                                                           IamInstanceProfile={'Name': '10014ec2role'})
 
-        function_ec2_cli.get_waiter('instance_running').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        print("\tInstance is now running, stopping instance...")
-        function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        function_ec2_cli.get_waiter('instance_stopped').wait(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        print("\tInstance: %s has been stopped " % temp_instance['Instances'][0]['InstanceId'])
-    except botocore.exceptions.ClientError as CreateInstanceErr:
-        function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-        function_ec2_cli.delete_subnet(SubnetId=subnet_id)
-        function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+            function_ec2_cli.get_waiter('instance_running').wait(
+                InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
 
-        rollback(amis=ami_list,
-                 put_items=put_item_list,
-                 html_keys=html_doc_list,
-                 json_keys=json_doc_list,
-                 error=CreateInstanceErr)
+            print("\tInstance is now running, stopping instance...")
+            function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+            function_ec2_cli.get_waiter('instance_stopped').wait(
+                InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+            print("\tInstance: %s has been stopped " % temp_instance['Instances'][0]['InstanceId'])
 
-    original_image_name = function_ec2_cli.describe_images(ImageIds=[ami])['Images'][0]['Name']
-    new_image_name = "%s-%s" % (original_image_name, int(time.time()))
+            original_image_name = function_ec2_cli.describe_images(ImageIds=[ami])['Images'][0]['Name']
+            new_image_name = "%s-%s" % (original_image_name, int(time.time()))
+            new_image = function_ec2_cli.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
+                                                      Name=new_image_name[:128])
 
-    print("\tCreating image from Instance ID: %s..." % temp_instance['Instances'][0]['InstanceId'])
-    new_image = function_ec2_cli.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
-                                              Name=new_image_name[:128])
+            function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
+            function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
 
-    try:
-        function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
-        function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
+            print("\tImage: %s has been created and is availble" % new_image['ImageId'])
 
-        print("\tImage: %s has been created and is availble" % new_image['ImageId'])
+            try:
+                function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+                function_ec2_cli.get_waiter('instance_terminated').wait(
+                    InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+                function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+                function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
+                function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+            except botocore.exceptions.ClientError as DeletionError:
+                print("\tSomething went wrong when deleteing temporary objects...")
+                raise DeletionError
 
-    except botocore.exceptions.ClientError as CreateImageErr:
-        raise CreateImageErr
+            return new_image['ImageId']
 
-    try:
-        function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        function_ec2_cli.get_waiter('instance_terminated').wait(
-            InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-        function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-        function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
-        function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
-    except botocore.exceptions.ClientError as DeletionError:
-        print("\tSomething went wrong when deleteing temporary objects...")
-        raise DeletionError
+        except botocore.exceptions.ClientError as CreateInstanceErr:
+            function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+            function_ec2_cli.delete_subnet(SubnetId=funct_subnet_id)
+            function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+            rollback(amis=ami_list,
+                     put_items=put_item_list,
+                     html_keys=html_doc_list,
+                     json_keys=json_doc_list,
+                     error=CreateInstanceErr)
 
-    return new_image['ImageId']
+        except botocore.exceptions.WaiterError:
+            function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+            try:
+                function_ec2_cli.get_waiter('instance_terminated').wait(
+                    InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+            except botocore.exceptions.WaiterError:
+                print("Instance: %s cannot be terminated." % temp_instance['Instances'][0]['InstanceId'])
+                STUCK_INSTANCES.append(
+                    {'AccountID': funct_account_id, 'InstanceID': temp_instance['Instances'][0]['InstanceId']})
+            print("Instance is currently stuck starting up. Trying again...")
+
+            if instance_counter == 3:
+                print("Failed to make an encrypted AMI.")
+                FAILED_ACCOUNTS.append(funct_account_id)
+                break
+            else:
+                instance_counter += 1
 
 
 def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
     print("Sharing AMI...")
-    vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
-    subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, vpc_id=vpc_id)
+    share_vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
+    share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
     new_ami_id = recreate_image(ami=ami_id,
                                 function_ec2_cli=MAIN_EC2_CLI,
                                 securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
-                                                           vpc_id=vpc_id),
-                                subnet_id=subnet_id)
+                                                           funct_vpc_id=share_vpc_id),
+                                funct_subnet_id=share_subnet_id,
+                                funct_account_id='main_account')
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
@@ -370,13 +392,14 @@ if __name__ == '__main__':
 
                     try:
                         vpc_id = create_vpc(function_ec2_cli=ec2_cli)
-                        subnet_id = create_subnet(function_ec2_cli=ec2_cli, vpc_id=vpc_id)
+                        subnet_id = create_subnet(function_ec2_cli=ec2_cli, funct_vpc_id=vpc_id)
 
                         account_ami = recreate_image(ami=certain_ami_id,
                                                      function_ec2_cli=ec2_cli,
                                                      securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
-                                                                                vpc_id=vpc_id),
-                                                     subnet_id=subnet_id)
+                                                                                funct_vpc_id=vpc_id),
+                                                     funct_subnet_id=subnet_id,
+                                                     funct_account_id=account_id)
 
                         for data in config_data['Accounts']:
                             if account_id == data['AccountNumber']:
