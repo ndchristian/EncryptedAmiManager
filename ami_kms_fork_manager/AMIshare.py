@@ -102,8 +102,13 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id):
         print("\tInstance: %s has been stopped " % temp_instance['Instances'][0]['InstanceId'])
     except botocore.exceptions.ClientError as CreateInstanceErr:
         function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-        function_ec2_cli.delete_security_group(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
-        raise CreateInstanceErr
+        function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+
+        rollback(amis=ami_list,
+                 put_items=put_item_list,
+                 html_keys=html_doc_list,
+                 json_keys=json_doc_list,
+                 error=CreateInstanceErr)
 
     original_image_name = function_ec2_cli.describe_images(ImageIds=[ami])['Images'][0]['Name']
     new_image_name = "%s-%s" % (original_image_name, int(time.time()))
@@ -124,7 +129,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id):
     try:
         function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
         function_ec2_cli.delete_security_group(GroupIds=securitygroup_id)
-        function_ec2_cli.delete_security_group(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+        function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
     except botocore.exceptions.ClientError as DeletionError:
         print("\tSomething went wrong when deleteing temporary objects...")
         raise DeletionError
