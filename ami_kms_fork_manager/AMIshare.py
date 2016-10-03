@@ -102,7 +102,7 @@ def create_sg(function_ec2_cli, vpc_id):
                  error=SGerror)
 
 
-def recreate_image(ami, function_ec2_cli, securitygroup_id,subnet_id):
+def recreate_image(ami, function_ec2_cli, securitygroup_id, subnet_id):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
 
@@ -125,7 +125,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id,subnet_id):
         print("\tInstance: %s has been stopped " % temp_instance['Instances'][0]['InstanceId'])
     except botocore.exceptions.ClientError as CreateInstanceErr:
         function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-        function_ec2_cli.delete_subnet(SubnetId = subnet_id)
+        function_ec2_cli.delete_subnet(SubnetId=subnet_id)
         function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
 
         rollback(amis=ami_list,
@@ -152,8 +152,10 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id,subnet_id):
 
     try:
         function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+        function_ec2_cli.get_waiter('instance_terminated').wait(
+            InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
         function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-        function_ec2_cli.delete_subnet(SubnetId = temp_instance['Instances'][0]['SubnetId'])
+        function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
         function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
     except botocore.exceptions.ClientError as DeletionError:
         print("\tSomething went wrong when deleteing temporary objects...")
@@ -167,14 +169,13 @@ def share_ami():
 
     print("Sharing AMI...")
     vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
-    subnet_id =create_subnet(function_ec2_cli=MAIN_EC2_CLI,vpc_id= vpc_id)
-
+    subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, vpc_id=vpc_id)
 
     new_ami_id = recreate_image(ami=ami_id,
                                 function_ec2_cli=MAIN_EC2_CLI,
                                 securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
                                                            vpc_id=vpc_id),
-                                subnet_id= subnet_id)
+                                subnet_id=subnet_id)
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
@@ -369,7 +370,7 @@ if __name__ == '__main__':
 
                     try:
                         vpc_id = create_vpc(function_ec2_cli=ec2_cli)
-                        subnet_id = create_subnet(function_ec2_cli=ec2_cli,vpc_id=vpc_id)
+                        subnet_id = create_subnet(function_ec2_cli=ec2_cli, vpc_id=vpc_id)
 
                         account_ami = recreate_image(ami=certain_ami_id,
                                                      function_ec2_cli=ec2_cli,
