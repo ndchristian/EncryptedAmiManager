@@ -282,7 +282,7 @@ if __name__ == '__main__':
             raise NoBucket
 
     try:
-        MAIN_DYNA_CLI.describe_table(TableName=config_data['General'[0]['DynamoDBTable'])
+        MAIN_DYNA_CLI.describe_table(TableName=config_data['General'][0]['DynamoDBTable'])
     except botocore.exceptions.ClientError as NoTable:
         raise NoTable
 
