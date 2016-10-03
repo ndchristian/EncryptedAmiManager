@@ -43,11 +43,14 @@ def config():
 def create_vpc(function_ec2_cli):
     """Creates a temporary VPC"""
 
-    print("\tCreating temporary VPC...")
-    temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
-    function_ec2_cli.get_waiter('vpc_available').wait(VpcIds=[temp_vpc['Vpc'][0]['VpcId']])
-    function_ec2_cli.get_waiter('vpc_exists').wait(VpcIds=[temp_vpc['Vpc'][0]['VpcId']])
-    print("\tCreated VPC: %s" % temp_vpc['Vpc'][0]['VpcId'])
+    try:
+        print("\tCreating temporary VPC...")
+        temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
+        function_ec2_cli.get_waiter('vpc_available').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
+        function_ec2_cli.get_waiter('vpc_exists').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
+        print("\tCreated VPC: %s" % temp_vpc['Vpc'][0]['VpcId'])
+    except botocore.exceptions.ClientError as VpcError:
+        function_ec2_cli.delete_vpc(VpcId = [temp_vpc['Vpc']['VpcId']])
 
     return temp_vpc['Vpc'][0]['VpcId']
 
@@ -64,6 +67,7 @@ def create_sg(function_ec2_cli, vpc_id):
     except botocore.exceptions.ClientError as SGerror:
         function_ec2_cli.delete_vpc(VpcId=vpc_id)
         raise SGerror
+    return temp_sg['GroupId']
 
 
 def recreate_image(ami, function_ec2_cli, securitygroup_id):
