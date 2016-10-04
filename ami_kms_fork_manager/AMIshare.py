@@ -140,7 +140,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
             function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
 
-            statis_check = function_ec2_cli.describe_images(ImageIds = [new_image['ImageId']])
+            statis_check = function_ec2_cli.describe_images(ImageIds=[new_image['ImageId']])
 
             if statis_check['Images'][0]['State'] != 'available':
                 print("Something has gone wrong when trying to create %s" % new_image['ImageId'])
@@ -406,60 +406,58 @@ if __name__ == '__main__':
                                                      funct_subnet_id=subnet_id,
                                                      funct_account_id=account_id)
 
-                        for data in config_data['Accounts']:
-                            if account_id == data['AccountNumber']:
-                                encrypted_ami = ec2_cli.copy_image(
-                                    SourceRegion=REGION,
-                                    SourceImageId=account_ami,
-                                    Name=image_details['Images'][0]['Name'],
-                                    Description=image_description,
-                                    Encrypted=True,
-                                    KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
+                        encrypted_ami = ec2_cli.copy_image(
+                            SourceRegion=REGION,
+                            SourceImageId=account_ami,
+                            Name=image_details['Images'][0]['Name'],
+                            Description=image_description,
+                            Encrypted=True,
+                            KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
-                                ami_list.append({'AccountNumber': account_num,
-                                                 'Region': REGION,
-                                                 'AMI_ID': encrypted_ami['ImageId']})
-                                print("Created encrypted AMI for %s." % data['AccountNumber'])
+                        ami_list.append({'AccountNumber': account_num,
+                                         'Region': REGION,
+                                         'AMI_ID': encrypted_ami['ImageId']})
+                        print("Created encrypted AMI for %s." % account_id)
 
-                                # Gathers DB and json values
+                        # Gathers DB and json values
 
-                                item = {
-                                    'sourceami': ami_id,
-                                    'targetami': account_ami,
-                                    'targetregion': region_data,
-                                    'targetawsaccountnum': account_num,
-                                    'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
-                                    'releasedate': config_data['General'][0]['ReleaseDate'],
-                                    'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
-                                    'stasisdate': config_data['General'][0]['StasisDate'],
-                                    'os': config_data['General'][0]['OS'],
-                                    'osver': config_data['General'][0]['OsVersion'],
-                                    'comments:': config_data['General'][0]['Comments'],
-                                    'jobnum': 'jobnum-%s' % int(time.time()),
-                                    'epochtime': int(time.time()),
-                                    'logicaldelete': 0}
+                        put_item = {
+                            'sourceami': ami_id,
+                            'targetami': account_ami,
+                            'targetregion': region_data,
+                            'targetawsaccountnum': account_num,
+                            'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
+                            'releasedate': config_data['General'][0]['ReleaseDate'],
+                            'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
+                            'stasisdate': config_data['General'][0]['StasisDate'],
+                            'os': config_data['General'][0]['OS'],
+                            'osver': config_data['General'][0]['OsVersion'],
+                            'comments:': config_data['General'][0]['Comments'],
+                            'jobnum': 'jobnum-%s' % int(time.time()),
+                            'epochtime': int(time.time()),
+                            'logicaldelete': 0}
 
-                                put_item_list.append(item)
+                        put_item_list.append(put_item)
 
-                                try:
-                                    table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
-                                    table.put_item(item)
-                                    print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
-                                except botocore.exceptions.ClientError as DynaError:
-                                    rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[],
-                                             error=e)
+                        try:
+                            table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
+                            table.put_item(Item=put_item)
+                            print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
+                        except botocore.exceptions.ClientError as DynaError:
+                            rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[],
+                                     error=e)
 
-                                j_data = {
-                                    'awsaccountnumber': account_num,
-                                    'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
-                                    'sourceami': ami_id,
-                                    'targetami': encrypted_ami['ImageId'],
-                                    'os': config_data['General'][0]['OS'],
-                                    'osver': config_data['General'][0]['OsVersion'],
+                        j_data = {
+                            'awsaccountnumber': account_num,
+                            'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
+                            'sourceami': ami_id,
+                            'targetami': encrypted_ami['ImageId'],
+                            'os': config_data['General'][0]['OS'],
+                            'osver': config_data['General'][0]['OsVersion'],
 
-                                }
+                        }
 
-                                json_info_list.append(j_data)
+                        json_info_list.append(j_data)
 
                     except botocore.exceptions.ClientError as e:
                         rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[], error=e)
