@@ -102,7 +102,12 @@ def create_sg(function_ec2_cli, funct_vpc_id):
 
             except botocore.exceptions.ClientError as WaiterError:
                 if counter == 10:
-                    raise WaiterError
+                    function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
+                    rollback(amis=ami_list,
+                             put_items=put_item_list,
+                             html_keys=html_doc_list,
+                             json_keys=json_doc_list,
+                             error=WaiterError)
                 else:
                     time.sleep(1)
                     counter += 1
