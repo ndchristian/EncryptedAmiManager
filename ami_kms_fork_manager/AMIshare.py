@@ -416,58 +416,69 @@ if __name__ == '__main__':
                                                  'AMI_ID': encrypted_ami['ImageId']})
                                 print("Created encrypted AMI for %s." % data['AccountNumber'])
 
-                        # Gathers DB and json values
-                        put_item_list.append({
-                            'sourceami': ami_id,
-                            'targetami': account_ami,
-                            'targetregion': region_data,
-                            'targetawsaccountnum': account_num,
-                            'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
-                            'releasedate': config_data['General'][0]['ReleaseDate'],
-                            'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
-                            'stasisdate': config_data['General'][0]['StasisDate'],
-                            'os': config_data['General'][0]['OS'],
-                            'osver': config_data['General'][0]['OsVersion'],
-                            'comments:': config_data['General'][0]['Comments'],
-                            'jobnum': 'jobnum-%s' % int(time.time()),
-                            'epochtime': int(time.time()),
-                            'logicaldelete': 0
-                        })
+                                # Gathers DB and json values
 
-                        j_data = {
-                            'awsaccountnumber': account_num,
-                            'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
-                            'sourceami': ami_id,
-                            'targetami': encrypted_ami['ImageId'],
-                            'os': config_data['General'][0]['OS'],
-                            'osver': config_data['General'][0]['OsVersion'],
+                                item = {
+                                    'sourceami': ami_id,
+                                    'targetami': account_ami,
+                                    'targetregion': region_data,
+                                    'targetawsaccountnum': account_num,
+                                    'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
+                                    'releasedate': config_data['General'][0]['ReleaseDate'],
+                                    'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
+                                    'stasisdate': config_data['General'][0]['StasisDate'],
+                                    'os': config_data['General'][0]['OS'],
+                                    'osver': config_data['General'][0]['OsVersion'],
+                                    'comments:': config_data['General'][0]['Comments'],
+                                    'jobnum': 'jobnum-%s' % int(time.time()),
+                                    'epochtime': int(time.time()),
+                                    'logicaldelete': 0}
 
-                        }
+                                put_item_list.append(item)
 
-                        json_info_list.append(j_data)
+                                try:
+                                    table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
+                                    table.put_item(item)
+                                    print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
+                                except botocore.exceptions.ClientError as DynaError:
+                                    rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[],
+                                             error=e)
+
+                                j_data = {
+                                    'awsaccountnumber': account_num,
+                                    'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
+                                    'sourceami': ami_id,
+                                    'targetami': encrypted_ami['ImageId'],
+                                    'os': config_data['General'][0]['OS'],
+                                    'osver': config_data['General'][0]['OsVersion'],
+
+                                }
+
+                                json_info_list.append(j_data)
+
                     except botocore.exceptions.ClientError as e:
                         rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[], error=e)
 
-    # Creates HTML and JSON documents
-    json_doc_list.append(json_data_upload(json_data_list=json_info_list))
-    html_doc_list.append(create_html_doc(ami_details_list=ami_list))
+# Creates HTML and JSON documents
+json_doc_list.append(json_data_upload(json_data_list=json_info_list))
+html_doc_list.append(create_html_doc(ami_details_list=ami_list))
 
-    # Adds entries into a DyanomoDB database
-    for put_item in put_item_list:
-        try:
-            table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
-            table.put_item(put_item)
-            print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
-        except botocore.exceptions.ClientError as TableError:
-            rollback(amis=ami_list,
-                     put_items=put_item_list,
-                     html_keys=html_doc_list,
-                     json_keys=json_doc_list,
-                     error=TableError)
+# Adds entries into a DyanomoDB database
+for put_item in put_item_list:
+    try:
+        table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
+        table.put_item(put_item)
+        print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
+    except botocore.exceptions.ClientError as TableError:
+        rollback(amis=ami_list,
+                 put_items=put_item_list,
+                 html_keys=html_doc_list,
+                 json_keys=json_doc_list,
+                 error=TableError)
 
-    if FAILED_ACCOUNTS:
-        print("Failed Accounts: %s" % FAILED_ACCOUNTS)
-    if STUCK_INSTANCES:
-        print("Stuck instances: %s" % STUCK_INSTANCES)
+if FAILED_ACCOUNTS:
+    print("Failed Accounts: %s" % FAILED_ACCOUNTS)
+if STUCK_INSTANCES:
+    print("Stuck instances: %s" % STUCK_INSTANCES)
 
-    print("Done!")
+print("Done!")
