@@ -86,11 +86,26 @@ def create_subnet(function_ec2_cli, funct_vpc_id):
 
 def create_sg(function_ec2_cli, funct_vpc_id):
     """Creates a temporary security group"""
+    counter = 0
     try:
         print("\tCreating temporary security group...")
         temp_sg = function_ec2_cli.create_security_group(GroupName='TempSG-%s' % int(time.time()),
                                                          Description='Temporary ami_kms_fork_manager security group',
                                                          VpcId=funct_vpc_id)
+
+        while True:
+            try:
+                function_ec2_cli.security_groups(GroupIds=[temp_sg['GroupId']])
+
+                print("\tCreated temporary security group: %s" % temp_sg['GroupId'])
+                return temp_sg['GroupId']
+
+            except botocore.exceptions.ClientError as WaiterError:
+                if counter == 10:
+                    raise WaiterError
+                else:
+                    time.sleep(1)
+                    counter += 1
 
         print("\tCreated temporary security group: %s" % temp_sg['GroupId'])
 
