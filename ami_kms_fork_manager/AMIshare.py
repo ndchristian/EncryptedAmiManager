@@ -410,10 +410,10 @@ if __name__ == '__main__':
                                     Encrypted=True,
                                     KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
-                            ami_list.append({'AccountNumber': account_num,
-                                             'Region': REGION,
-                                             'AMI_ID': encrypted_ami['ImageId']})
-                            print("Created encrypted AMI for %s." % data['AccountNumber'])
+                                ami_list.append({'AccountNumber': account_num,
+                                                 'Region': REGION,
+                                                 'AMI_ID': encrypted_ami['ImageId']})
+                                print("Created encrypted AMI for %s." % data['AccountNumber'])
 
                         # Gathers DB and json values
                         put_item_list.append({
