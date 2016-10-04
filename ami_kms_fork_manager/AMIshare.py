@@ -449,6 +449,7 @@ if __name__ == '__main__':
                                                      funct_subnet_id=subnet_id,
                                                      funct_account_id=account_id)
 
+                        print("Making an encrypted copy of the AMI..")
                         encrypted_ami = ec2_cli.copy_image(
                             SourceRegion=REGION,
                             SourceImageId=account_ami,
@@ -457,10 +458,12 @@ if __name__ == '__main__':
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
+                        print(ec2_cli.describe_images(ImageIds=[encrypted_ami['ImageId']]))
+
                         ami_list.append({'AccountNumber': account_num,
                                          'Region': REGION,
                                          'AMI_ID': encrypted_ami['ImageId']})
-                        print("Created encrypted AMI for %s." % account_id)
+                        print("Created encrypted AMI: %s for %s." %(encrypted_ami['ImageId'], account_id))
 
                         # Gathers DB and json values
 
