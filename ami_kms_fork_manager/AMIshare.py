@@ -371,7 +371,11 @@ def rollback(amis, put_items, html_keys, json_keys, error):
         rollback_ec2_cli = rollback_session.client('ec2', region_name=rollback_account['Region'])
 
         for image_to_delete in amis:
-            rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMI_ID'])
+            try:
+                rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMI_ID'])
+            except botocore.exceptions.ClientError as deRegisterError:
+                print(deRegisterError)
+                pass
 
     print("Finished rolling back.")
     raise error
