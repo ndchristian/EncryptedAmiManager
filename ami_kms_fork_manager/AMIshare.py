@@ -141,7 +141,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
             function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
 
-            print("\tImage: %s has been created and is availble" % new_image['ImageId'])
+            print("\tImage: %s has been created and is available" % new_image['ImageId'])
 
             try:
                 function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
@@ -172,10 +172,10 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                 function_ec2_cli.get_waiter('instance_terminated').wait(
                     InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
             except botocore.exceptions.WaiterError:
-                print("Instance: %s cannot be terminated." % temp_instance['Instances'][0]['InstanceId'])
+                print("\tInstance: %s cannot be terminated." % temp_instance['Instances'][0]['InstanceId'])
                 STUCK_INSTANCES.append(
                     {'AccountID': funct_account_id, 'InstanceID': temp_instance['Instances'][0]['InstanceId']})
-            print("Instance is currently stuck starting up. Trying again...")
+            print("\tInstance is currently stuck starting up. Trying again...")
 
             if instance_counter == 3:
                 print("Failed to make an encrypted AMI.")
@@ -464,6 +464,10 @@ if __name__ == '__main__':
                      html_keys=html_doc_list,
                      json_keys=json_doc_list,
                      error=TableError)
-    print("Failed Accounts: %s" % FAILED_ACCOUNTS)
-    print("Stuck instances: %s" % STUCK_INSTANCES)
+
+    if FAILED_ACCOUNTS:
+        print("Failed Accounts: %s" % FAILED_ACCOUNTS)
+    if STUCK_INSTANCES:
+        print("Stuck instances: %s" % STUCK_INSTANCES)
+
     print("Done!")
