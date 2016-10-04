@@ -65,12 +65,31 @@ def create_vpc(function_ec2_cli):
 
 def create_subnet(function_ec2_cli, funct_vpc_id):
     """Creates a temporary subnet"""
-
+    counter = 0
     try:
         print("\tCreating temporary subnet...")
         temp_subnet = function_ec2_cli.create_subnet(VpcId=funct_vpc_id,
                                                      CidrBlock='10.0.1.0/16')
-        function_ec2_cli.get_waiter('subnet_available').wait(SubnetIds=[temp_subnet['Subnet']['SubnetId']])
+        while True:
+            try:
+                function_ec2_cli.get_waiter('subnet_available').wait(SubnetIds=[temp_subnet['Subnet']['SubnetId']])
+
+                print("\tCreated subnet: %s" % temp_subnet['Subnet']['SubnetId'])
+                return temp_subnet['Subnet']['SubnetId']
+
+            except botocore.exceptions.WaiterError as subnetError:
+                if counter == 5:
+                    function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
+                    rollback(amis=ami_list,
+                             put_items=put_item_list,
+                             html_keys=html_doc_list,
+                             json_keys=json_doc_list,
+                             error=subnetError)
+                else:
+                    counter +=1
+
+
+
         print("\tCreated subnet: %s" % temp_subnet['Subnet']['SubnetId'])
 
         return temp_subnet['Subnet']['SubnetId']
