@@ -108,12 +108,11 @@ def create_sg(function_ec2_cli, funct_vpc_id):
 def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, funct_account_id):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
-    instance_bool = False
-    instance_counter = 0
+    counter = 0
 
     temp_sg_details = function_ec2_cli.describe_security_groups(GroupIds=[securitygroup_id])
 
-    while not instance_bool:
+    while True:
         try:
             print("\tCreating temporary instance...")
             temp_instance = function_ec2_cli.run_instances(ImageId=ami,
@@ -177,12 +176,12 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                     {'AccountID': funct_account_id, 'InstanceID': temp_instance['Instances'][0]['InstanceId']})
             print("\tInstance is currently stuck starting up. Trying again...")
 
-            if instance_counter == 3:
+            if counter == 3:
                 print("Failed to make an encrypted AMI.")
                 FAILED_ACCOUNTS.append(funct_account_id)
                 break
             else:
-                instance_counter += 1
+                counter += 1
 
 
 def share_ami():
