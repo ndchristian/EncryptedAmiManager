@@ -95,7 +95,7 @@ def create_sg(function_ec2_cli, funct_vpc_id):
 
         while True:
             try:
-                function_ec2_cli.security_groups(GroupIds=[temp_sg['GroupId']])
+                function_ec2_cli.describe_security_groups(GroupIds=[temp_sg['GroupId']])
 
                 print("\tCreated temporary security group: %s" % temp_sg['GroupId'])
                 return temp_sg['GroupId']
