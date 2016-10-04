@@ -140,7 +140,12 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
             function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
 
-            print("\tImage: %s has been created and is available" % new_image['ImageId'])
+            statis_check = function_ec2_cli.describe_images(ImageIds = [new_image['ImageId']])
+
+            if statis_check['Images'][0]['State'] != 'available':
+                print("Something has gone wrong when trying to create %s" % new_image['ImageId'])
+            else:
+                print("\tImage: %s has been created and is available" % new_image['ImageId'])
 
             try:
                 function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
