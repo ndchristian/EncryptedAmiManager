@@ -297,7 +297,8 @@ def create_html_doc(ami_details_list):
                         config_data['General'][0]['CompanyAccountNumber'],
                         ami_details['AccountNumber'],
                         ami_details['AMI_ID'],
-                        ami_details['Region'], ami_details['AMI_ID'])
+                        ami_details['Region'],
+                        ami_details['AMI_ID'])
 
     s3_input += """
     </body>
@@ -322,7 +323,6 @@ def rollback(amis, put_items, html_keys, json_keys, error):
         rollback_table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
         if not put_items:
             for rollback_item in put_items:
-                print(rollback_item)
                 rollback_table.delete_item(Key=rollback_item)
     except botocore.exceptions.ClientError as BotoError:
         print(BotoError)
@@ -352,7 +352,7 @@ def rollback(amis, put_items, html_keys, json_keys, error):
         rollback_ec2_cli = rollback_session.client('ec2', region_name=rollback_account['Region'])
 
         for image_to_delete in amis:
-            rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMD_ID'])
+            rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMI_ID'])
 
     print("Finished rolling back.")
     raise error
@@ -404,8 +404,8 @@ if __name__ == '__main__':
 
         # Connects to each region and copies the AMI there.
         for acc_data in config_data['Accounts']:
-            if account_id == acc_data['AccountNumber']:
-                print("%s:" % account_id)
+            if account_num == acc_data['AccountNumber']:
+                print("%s:" % account_num)
                 for region_data in acc_data['Regions']:
 
                     ec2_cli = session.client('ec2', region_name=region_data)
@@ -429,7 +429,7 @@ if __name__ == '__main__':
                         encrypted_ami = ec2_cli.copy_image(
                             SourceRegion=REGION,
                             SourceImageId=account_ami,
-                            Name=image_details['Images'][0]['Name'],
+                            Name="Encrypted-%s" % image_details['Images'][0]['Name'],
                             Description=image_description,
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
