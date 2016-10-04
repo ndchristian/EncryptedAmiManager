@@ -458,7 +458,6 @@ if __name__ == '__main__':
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
-                        print(ec2_cli.describe_images(ImageIds=[encrypted_ami['ImageId']]))
 
                         ami_list.append({'AccountNumber': account_num,
                                          'Region': REGION,
