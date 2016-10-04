@@ -295,9 +295,10 @@ def rollback(amis, put_items, html_keys, json_keys, error):
 
     try:
         rollback_table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
-        for rollback_item in put_items:
-            print(rollback_item)
-            rollback_table.delete_item(Key=rollback_item)
+        if not put_items:
+            for rollback_item in put_items:
+                print(rollback_item)
+                rollback_table.delete_item(Key=rollback_item)
     except botocore.exceptions.ClientError as BotoError:
         print(BotoError)
         pass
