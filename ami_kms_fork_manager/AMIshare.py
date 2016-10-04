@@ -160,7 +160,8 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                                                            SecurityGroupIds=[securitygroup_id],
                                                            SubnetId=funct_subnet_id,
                                                            InstanceType='t2.micro',
-                                                           IamInstanceProfile={'Name': '10014ec2role'})
+                                                           IamInstanceProfile={
+                                                               'Name': config_data['General'][0]['RoleName']})
 
             function_ec2_cli.get_waiter('instance_running').wait(
                 InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
