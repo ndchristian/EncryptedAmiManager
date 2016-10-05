@@ -150,7 +150,6 @@ def recreate_image(ami, function_ec2_cli, function_iam_cli, securitygroup_id, fu
 
     temp_sg_details = function_ec2_cli.describe_security_groups(GroupIds=[securitygroup_id])
     profile_details = function_iam_cli.get_role(RoleName=config_data['General'][0]['RoleName'])
-    print(profile_details)
 
     while True:
         try:
@@ -162,8 +161,8 @@ def recreate_image(ami, function_ec2_cli, function_iam_cli, securitygroup_id, fu
                                                            SubnetId=funct_subnet_id,
                                                            InstanceType='t2.micro',
                                                            IamInstanceProfile={
-                                                               'Name': profile_details['Role']['RoleName']
-                                                           })
+                                                               'Name': profile_details['Role']['RoleName'],
+                                                               'Arn': profile_details['Role']['Arn']})
 
             function_ec2_cli.get_waiter('instance_running').wait(
                 InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
