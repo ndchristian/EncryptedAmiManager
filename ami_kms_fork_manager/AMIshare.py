@@ -86,9 +86,7 @@ def create_subnet(function_ec2_cli, funct_vpc_id):
                              json_keys=json_doc_list,
                              error=subnetError)
                 else:
-                    counter +=1
-
-
+                    counter += 1
 
         print("\tCreated subnet: %s" % temp_subnet['Subnet']['SubnetId'])
 
@@ -199,6 +197,10 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             return new_image['ImageId']
 
         except botocore.exceptions.ClientError as CreateInstanceErr:
+            print(CreateInstanceErr.response['Error']['Code'])
+            if CreateInstanceErr.response['Error']['Code'] == 'InvalidGroup.NotFound':
+                print("Something when wrong. Trying again...")
+                continue
             function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
             function_ec2_cli.delete_subnet(SubnetId=funct_subnet_id)
             function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
@@ -457,11 +459,10 @@ if __name__ == '__main__':
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
-
                         ami_list.append({'AccountNumber': account_num,
                                          'Region': REGION,
                                          'AMI_ID': encrypted_ami['ImageId']})
-                        print("Created encrypted AMI: %s for %s." %(encrypted_ami['ImageId'], account_id))
+                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
 
                         # Gathers DB and json values
 
