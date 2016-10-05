@@ -334,25 +334,30 @@ def create_html_doc(ami_details_list):
 
     for ami_details in ami_details_list:
         s3_input += "<p>Company_account_Number: %s | AWS_Account_Number: %s | AMI: %s" \
-                    " | ARN:arn:aws:ec2:%s::image/%s</p>\n\n " % (
+                    " | ARN:arn:aws:ec2:%s::image/%s | Encrypted_AMI: %s | ARN: arn:aws:ec2:%s::image/%s </p>\n\n " % (
                         config_data['General'][0]['CompanyAccountNumber'],
                         ami_details['AccountNumber'],
                         ami_details['AMI_ID'],
-                        ami_details['Region'],
-                        ami_details['AMI_ID'])
+                        ami_details['AccountNumber'],
+                        ami_details['AMI_ID'],
+                        ami_details['Encrypted_AMI_ID'],
+                        ami_details['AccountNumber'],
+                        ami_details['Encrypted_AMI_ID']
 
-    s3_input += """
+                    )
+
+        s3_input += """
     </body>
     </html>"""
 
-    bucket_key = "%s/%s.html" % (config_data['General'][0]['HTML_S3keyLocation'], int(time.time()))
+        bucket_key = "%s/%s.html" % (config_data['General'][0]['HTML_S3keyLocation'], int(time.time()))
 
-    MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
-                           Key=bucket_key,
-                           Body=s3_input)
-    print("Created HTML output: %s" % bucket_key.split("/")[-1])
+        MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
+                               Key=bucket_key,
+                               Body=s3_input)
+        print("Created HTML output: %s" % bucket_key.split("/")[-1])
 
-    return bucket_key
+        return bucket_key
 
 
 def rollback(amis, put_items, html_keys, json_keys, error):
@@ -476,7 +481,8 @@ if __name__ == '__main__':
 
                         AMI_LIST.append({'AccountNumber': account_num,
                                          'Region': REGION,
-                                         'AMI_ID': encrypted_ami['ImageId']})
+                                         'Encrypted_AMI_ID': encrypted_ami['ImageId'],
+                                         'AMI_ID': account_ami})
                         print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
 
                         # Gathers DB and json values
@@ -512,7 +518,8 @@ if __name__ == '__main__':
                             'awsaccountnumber': account_num,
                             'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
                             'sourceami': ami_id,
-                            'targetami': encrypted_ami['ImageId'],
+                            'targetami': account_ami,
+                            'encryptedami': encrypted_ami['ImageId'],
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
 
