@@ -28,6 +28,7 @@ MAIN_STS_CLI = boto3.client('sts')
 MAIN_DYNA_CLI = boto3.client('dynamodb')
 MAIN_DYNA_RESOURCE = boto3.resource('dynamodb')
 MAIN_S3_CLI = boto3.client('s3')
+MAIN_IAM_CLI = boto3.client('iam')
 
 REGION = boto3.session.Session().region_name
 
@@ -86,9 +87,7 @@ def create_subnet(function_ec2_cli, funct_vpc_id):
                              json_keys=json_doc_list,
                              error=subnetError)
                 else:
-                    counter +=1
-
-
+                    counter += 1
 
         print("\tCreated subnet: %s" % temp_subnet['Subnet']['SubnetId'])
 
@@ -144,12 +143,13 @@ def create_sg(function_ec2_cli, funct_vpc_id):
                  error=SGerror)
 
 
-def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, funct_account_id):
+def recreate_image(ami, function_ec2_cli, function_iam_cli, securitygroup_id, funct_subnet_id, funct_account_id):
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
     counter = 0
 
     temp_sg_details = function_ec2_cli.describe_security_groups(GroupIds=[securitygroup_id])
+    profile_details = function_iam_cli.get_role(RoleName=config_data['General'][0]['RoleName'])
 
     while True:
         try:
@@ -161,7 +161,8 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                                                            SubnetId=funct_subnet_id,
                                                            InstanceType='t2.micro',
                                                            IamInstanceProfile={
-                                                               'Name': config_data['General'][0]['RoleName']})
+                                                               'Name': profile_details['Role']['RoleName'],
+                                                               'Arn': profile_details['Role']['Arn']})
 
             function_ec2_cli.get_waiter('instance_running').wait(
                 InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
@@ -238,6 +239,7 @@ def share_ami():
 
     new_ami_id = recreate_image(ami=ami_id,
                                 function_ec2_cli=MAIN_EC2_CLI,
+                                function_iam_cli=MAIN_IAM_CLI,
                                 securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
                                                            funct_vpc_id=share_vpc_id),
                                 funct_subnet_id=share_subnet_id,
@@ -433,6 +435,7 @@ if __name__ == '__main__':
                 for region_data in acc_data['Regions']:
 
                     ec2_cli = session.client('ec2', region_name=region_data)
+                    iam_cli = session.client('iam', region_name=region_data)
 
                     try:
                         image_description = image_details['Images'][0]['Description']
@@ -445,6 +448,7 @@ if __name__ == '__main__':
 
                         account_ami = recreate_image(ami=certain_ami_id,
                                                      function_ec2_cli=ec2_cli,
+                                                     function_iam_cli=iam_cli,
                                                      securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
                                                                                 funct_vpc_id=vpc_id),
                                                      funct_subnet_id=subnet_id,
@@ -459,11 +463,10 @@ if __name__ == '__main__':
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
-
                         ami_list.append({'AccountNumber': account_num,
                                          'Region': REGION,
                                          'AMI_ID': encrypted_ami['ImageId']})
-                        print("Created encrypted AMI: %s for %s." %(encrypted_ami['ImageId'], account_id))
+                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
 
                         # Gathers DB and json values
 
