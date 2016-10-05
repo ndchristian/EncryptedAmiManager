@@ -515,7 +515,7 @@ html_doc_list.append(create_html_doc(ami_details_list=ami_list))
 for put_item in put_item_list:
     try:
         table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
-        table.put_item(put_item)
+        table.put_item(Item = put_item)
         print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
     except botocore.exceptions.ClientError as TableError:
         rollback(amis=ami_list,
