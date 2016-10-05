@@ -34,6 +34,12 @@ REGION = boto3.session.Session().region_name
 STUCK_INSTANCES = []
 FAILED_ACCOUNTS = []
 
+AMI_LIST = []
+JSON_INFO_LIST = []
+JSON_DOC_LIST = []
+PUT_ITEM_LIST = []
+HTML_DOC_LIST = []
+
 
 def config():
     """Grabs all data from the config file"""
@@ -56,10 +62,10 @@ def create_vpc(function_ec2_cli):
         return temp_vpc['Vpc']['VpcId']
 
     except botocore.exceptions.ClientError as VpcError:
-        rollback(amis=ami_list,
-                 put_items=put_item_list,
-                 html_keys=html_doc_list,
-                 json_keys=json_doc_list,
+        rollback(amis=AMI_LIST,
+                 put_items=PUT_ITEM_LIST,
+                 html_keys=HTML_DOC_LIST,
+                 json_keys=JSON_DOC_LIST,
                  error=VpcError)
 
 
@@ -80,10 +86,10 @@ def create_subnet(function_ec2_cli, funct_vpc_id):
             except botocore.exceptions.WaiterError as subnetError:
                 if counter == 5:
                     function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
-                    rollback(amis=ami_list,
-                             put_items=put_item_list,
-                             html_keys=html_doc_list,
-                             json_keys=json_doc_list,
+                    rollback(amis=AMI_LIST,
+                             put_items=PUT_ITEM_LIST,
+                             html_keys=HTML_DOC_LIST,
+                             json_keys=JSON_DOC_LIST,
                              error=subnetError)
                 else:
                     counter += 1
@@ -94,10 +100,10 @@ def create_subnet(function_ec2_cli, funct_vpc_id):
 
     except botocore.exceptions.ClientError as SubnetError:
         function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
-        rollback(amis=ami_list,
-                 put_items=put_item_list,
-                 html_keys=html_doc_list,
-                 json_keys=json_doc_list,
+        rollback(amis=AMI_LIST,
+                 put_items=PUT_ITEM_LIST,
+                 html_keys=HTML_DOC_LIST,
+                 json_keys=JSON_DOC_LIST,
                  error=SubnetError)
 
 
@@ -120,10 +126,10 @@ def create_sg(function_ec2_cli, funct_vpc_id):
             except botocore.exceptions.ClientError as WaiterError:
                 if counter == 10:
                     function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
-                    rollback(amis=ami_list,
-                             put_items=put_item_list,
-                             html_keys=html_doc_list,
-                             json_keys=json_doc_list,
+                    rollback(amis=AMI_LIST,
+                             put_items=PUT_ITEM_LIST,
+                             html_keys=HTML_DOC_LIST,
+                             json_keys=JSON_DOC_LIST,
                              error=WaiterError)
                 else:
                     time.sleep(1)
@@ -135,10 +141,10 @@ def create_sg(function_ec2_cli, funct_vpc_id):
 
     except botocore.exceptions.ClientError as SGerror:
         function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
-        rollback(amis=ami_list,
-                 put_items=put_item_list,
-                 html_keys=html_doc_list,
-                 json_keys=json_doc_list,
+        rollback(amis=AMI_LIST,
+                 put_items=PUT_ITEM_LIST,
+                 html_keys=HTML_DOC_LIST,
+                 json_keys=JSON_DOC_LIST,
                  error=SGerror)
 
 
@@ -146,6 +152,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
     """Images with EC2 BillingProduct codes cannot be copied to another AWS accounts, this creates a new image without
     an EC2 BillingProduct Code."""
     counter = 0
+    tryagain_counter = 0
 
     temp_sg_details = function_ec2_cli.describe_security_groups(GroupIds=[securitygroup_id])
 
@@ -199,15 +206,24 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
         except botocore.exceptions.ClientError as CreateInstanceErr:
             print(CreateInstanceErr.response['Error']['Code'])
             if CreateInstanceErr.response['Error']['Code'] == 'InvalidGroup.NotFound':
-                print("Something when wrong. Trying again...")
-                continue
+                tryagain_counter += 1
+                if tryagain_counter == 3:
+                    rollback(amis=AMI_LIST,
+                             put_items=PUT_ITEM_LIST,
+                             html_keys=HTML_DOC_LIST,
+                             json_keys=JSON_DOC_LIST,
+                             error=CreateInstanceErr)
+                else:
+                    print("Something when wrong. Trying again...")
+                    continue
+
             function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
             function_ec2_cli.delete_subnet(SubnetId=funct_subnet_id)
             function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
-            rollback(amis=ami_list,
-                     put_items=put_item_list,
-                     html_keys=html_doc_list,
-                     json_keys=json_doc_list,
+            rollback(amis=AMI_LIST,
+                     put_items=PUT_ITEM_LIST,
+                     html_keys=HTML_DOC_LIST,
+                     json_keys=JSON_DOC_LIST,
                      error=CreateInstanceErr)
 
         except botocore.exceptions.WaiterError:
@@ -276,7 +292,7 @@ def json_data_upload(json_data_list):
                                                sort_keys=True,
                                                indent=4,
                                                separators=(',', ': ')))
-        print("Created JSON output: %s" % bucket_key.split("/")[-1])
+    print("Created JSON output: %s" % bucket_key.split("/")[-1])
 
     return bucket_key
 
@@ -389,12 +405,6 @@ if __name__ == '__main__':
     role_name = config_data['General'][0]['RoleName']
     account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
 
-    ami_list = []
-    json_info_list = []
-    json_doc_list = []
-    put_item_list = []
-    html_doc_list = []
-
     for bucket in [config_data['General'][0]['JSON_S3bucket'], config_data['General'][0]['HTML_S3bucket']]:
         try:
             MAIN_S3_CLI.head_bucket(Bucket=bucket)
@@ -459,7 +469,7 @@ if __name__ == '__main__':
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
-                        ami_list.append({'AccountNumber': account_num,
+                        AMI_LIST.append({'AccountNumber': account_num,
                                          'Region': REGION,
                                          'AMI_ID': encrypted_ami['ImageId']})
                         print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
@@ -482,15 +492,15 @@ if __name__ == '__main__':
                             'epochtime': int(time.time()),
                             'logicaldelete': 0}
 
-                        put_item_list.append(put_item)
+                        PUT_ITEM_LIST.append(put_item)
 
                         try:
                             table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
                             table.put_item(Item=put_item)
                             print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
                         except botocore.exceptions.ClientError as DynaError:
-                            rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[],
-                                     error=e)
+                            rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
+                                     error=DynaError)
 
                         j_data = {
                             'awsaccountnumber': account_num,
@@ -502,27 +512,14 @@ if __name__ == '__main__':
 
                         }
 
-                        json_info_list.append(j_data)
+                        JSON_INFO_LIST.append(j_data)
 
                     except botocore.exceptions.ClientError as e:
-                        rollback(amis=ami_list, put_items=put_item_list, html_keys=[], json_keys=[], error=e)
+                        rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[], error=e)
 
 # Creates HTML and JSON documents
-json_doc_list.append(json_data_upload(json_data_list=json_info_list))
-html_doc_list.append(create_html_doc(ami_details_list=ami_list))
-
-# Adds entries into a DyanomoDB database
-for put_item in put_item_list:
-    try:
-        table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
-        table.put_item(Item = put_item)
-        print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
-    except botocore.exceptions.ClientError as TableError:
-        rollback(amis=ami_list,
-                 put_items=put_item_list,
-                 html_keys=html_doc_list,
-                 json_keys=json_doc_list,
-                 error=TableError)
+JSON_DOC_LIST.append(json_data_upload(json_data_list=JSON_INFO_LIST))
+HTML_DOC_LIST.append(create_html_doc(ami_details_list=AMI_LIST))
 
 if FAILED_ACCOUNTS:
     print("Failed Accounts: %s" % FAILED_ACCOUNTS)
