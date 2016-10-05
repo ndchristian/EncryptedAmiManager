@@ -484,6 +484,7 @@ if __name__ == '__main__':
                         put_item = {
                             'sourceami': ami_id,
                             'targetami': account_ami,
+                            'encryptedtargetami': encrypted_ami['ImageId'],
                             'targetregion': region_data,
                             'targetawsaccountnum': account_num,
                             'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
