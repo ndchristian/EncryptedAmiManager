@@ -334,17 +334,11 @@ def create_html_doc(ami_details_list):
 
     for ami_details in ami_details_list:
         s3_input += "<p>Company_account_Number: %s | AWS_Account_Number: %s | AMI: %s" \
-                    " | ARN:arn:aws:ec2:%s::image/%s | Encrypted_AMI: %s | ARN: arn:aws:ec2:%s::image/%s </p>\n\n " % (
+                    " | Encrypted_AMI: %s  </p>\n\n " % (
                         config_data['General'][0]['CompanyAccountNumber'],
                         ami_details['AccountNumber'],
                         ami_details['AMI_ID'],
-                        ami_details['AccountNumber'],
-                        ami_details['AMI_ID'],
-                        ami_details['Encrypted_AMI_ID'],
-                        ami_details['AccountNumber'],
-                        ami_details['Encrypted_AMI_ID']
-
-                    )
+                        ami_details['Encrypted_AMI_ID'])
 
         s3_input += """
     </body>
