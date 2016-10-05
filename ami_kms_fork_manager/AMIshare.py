@@ -206,6 +206,11 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
         except botocore.exceptions.ClientError as CreateInstanceErr:
             print(CreateInstanceErr.response['Error']['Code'])
             if CreateInstanceErr.response['Error']['Code'] == 'InvalidGroup.NotFound':
+
+                function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+                function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
+                function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+
                 tryagain_counter += 1
                 if tryagain_counter == 3:
                     rollback(amis=AMI_LIST,
