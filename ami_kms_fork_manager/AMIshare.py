@@ -26,7 +26,6 @@ CONFIG_PATH = 'config.json'
 MAIN_EC2_CLI = boto3.client('ec2')
 MAIN_STS_CLI = boto3.client('sts')
 MAIN_DYNA_CLI = boto3.client('dynamodb')
-MAIN_DYNA_RESOURCE = boto3.resource('dynamodb')
 MAIN_S3_CLI = boto3.client('s3')
 
 REGION = boto3.session.Session().region_name
@@ -360,10 +359,10 @@ def rollback(amis, put_items, html_keys, json_keys, error):
     revoke_ami_access()
 
     try:
-        rollback_table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
         if not put_items:
             for rollback_item in put_items:
-                rollback_table.delete_item(Key=rollback_item)
+                MAIN_DYNA_CLI.delete_item(TableName=config_data['General'][0]['DynamoDBTable'],
+                                          Key=rollback_item)
     except botocore.exceptions.ClientError as BotoError:
         print(BotoError)
         pass
@@ -501,8 +500,8 @@ if __name__ == '__main__':
                         PUT_ITEM_LIST.append(put_item)
 
                         try:
-                            table = MAIN_DYNA_RESOURCE.Table(config_data['General'][0]['DynamoDBTable'])
-                            table.put_item(Item=put_item)
+                            MAIN_DYNA_CLI.put_item(TableName=config_data['General'][0]['DynamoDBTable'],
+                                                   Item=put_item)
                             print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
                         except botocore.exceptions.ClientError as DynaError:
                             rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
