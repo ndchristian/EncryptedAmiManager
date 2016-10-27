@@ -454,6 +454,7 @@ if __name__ == '__main__':
 
                     try:
                         vpc_id = create_vpc(function_ec2_cli=ec2_cli)
+                        create_tags(Resources=vpc_id,Tags = [{Key: 'Temp VPC', Value: 'Temp VPC for AMI creation'}])
                         subnet_id = create_subnet(function_ec2_cli=ec2_cli, funct_vpc_id=vpc_id)
 
                         account_ami = recreate_image(ami=certain_ami_id,
