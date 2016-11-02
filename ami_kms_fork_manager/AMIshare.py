@@ -167,6 +167,9 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 
             function_ec2_cli.get_waiter('instance_running').wait(
                 InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+            function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'], securitygroup_id],
+                                         Tags=[{'Key': config_data['General'][0]['SecurityTagKey'],
+                                                'Value': config_data['General'][0]['SecurityTagValue']}])
 
             print("\tInstance is now running, stopping instance...")
             function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
@@ -456,7 +459,7 @@ if __name__ == '__main__':
                         vpc_id = create_vpc(function_ec2_cli=ec2_cli)
 
                         ec2_cli.create_tags(Resources=[vpc_id], Tags=[{'Key': 'Name',
-                                                                     'Value': 'temp VPC for AMI push'}])
+                                                                       'Value': 'Temp VPC for AMI push'}])
 
                         subnet_id = create_subnet(function_ec2_cli=ec2_cli, funct_vpc_id=vpc_id)
 
