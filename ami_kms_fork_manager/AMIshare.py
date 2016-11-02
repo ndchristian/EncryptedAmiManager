@@ -485,21 +485,21 @@ if __name__ == '__main__':
                         # Gathers DB and json values
 
                         put_item = {
-                            'sourceami': ami_id,
-                            'targetami': account_ami,
-                            'encryptedtargetami': encrypted_ami['ImageId'],
-                            'targetregion': region_data,
-                            'targetawsaccountnum': account_num,
-                            'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
-                            'releasedate': config_data['General'][0]['ReleaseDate'],
-                            'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
-                            'stasisdate': config_data['General'][0]['StasisDate'],
-                            'os': config_data['General'][0]['OS'],
-                            'osver': config_data['General'][0]['OsVersion'],
-                            'comments:': config_data['General'][0]['Comments'],
-                            'jobnum': 'jobnum-%s' % int(time.time()),
-                            'epochtime': int(time.time()),
-                            'logicaldelete': 0}
+                            {'sourceami': ami_id},
+                            {'targetami': account_ami},
+                            {'encryptedtargetami': encrypted_ami['ImageId']},
+                            {'targetregion': region_data},
+                            {'targetawsaccountnum': account_num},
+                            {'companyaccountnum': config_data['General'][0]['CompanyAccountNumber']},
+                            {'releasedate': config_data['General'][0]['ReleaseDate']},
+                            {'amiversionnum': config_data['General'][0]['AmiVersionNumber']},
+                            {'stasisdate': config_data['General'][0]['StasisDate']},
+                            {'os': config_data['General'][0]['OS']},
+                            {'osver': config_data['General'][0]['OsVersion']},
+                            {'comments:': config_data['General'][0]['Comments']},
+                            {'jobnum': 'jobnum-%s' % int(time.time())},
+                            {'epochtime': int(time.time())},
+                            {'logicaldelete': 0}}
 
                         PUT_ITEM_LIST.append(put_item)
 
