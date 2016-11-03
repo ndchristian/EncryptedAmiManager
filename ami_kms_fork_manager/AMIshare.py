@@ -508,7 +508,7 @@ if __name__ == '__main__':
 
                         try:
                             MAIN_DYNA_CLI.put_item(TableName=config_data['General'][0]['DynamoDBTable'],
-                                                   Item=put_item)
+                                                   Item={ami_id:put_item})
                             print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
                         except botocore.exceptions.ClientError as DynaError:
                             rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
