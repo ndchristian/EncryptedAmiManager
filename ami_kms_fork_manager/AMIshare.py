@@ -262,7 +262,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
-    print("Sharing AMI...")
+    print("Sharing AMI: %s..." % ami_id)
     share_vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
@@ -509,9 +509,13 @@ if __name__ == '__main__':
                             'logicaldelete': 0}
 
                         PUT_ITEM_LIST.append(put_item)
+                        try:
+                            table = dynamodb.Table(config_data['General'][0]['DynamoDBTable'])
+                            table.put_item(Item=put_item)
+                        except Exception as DynaError:
+                            rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
+                                     error=DynaError)
 
-                        table = dynamodb.Table(config_data['General'][0]['DynamoDBTable'])
-                        table.put_item(Item=put_item)
 
                         print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
 
@@ -523,6 +527,8 @@ if __name__ == '__main__':
                             'encryptedami': encrypted_ami['ImageId'],
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
+                            'tempvpc': vpc_id,
+                            'tempsubnet': subnet_id
 
                         }
 
