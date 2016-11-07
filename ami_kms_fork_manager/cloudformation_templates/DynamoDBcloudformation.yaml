@@ -6,19 +6,20 @@ Parameters:
     Description : "Table name for ami_kms_fork_manager"
 
 Resources:
-  Type: "AWS::DynamoDB::Table"
-  Properties:
-    AttributeDefinitions:
-      - AttributeName: "SourceAMI"
-        AttributeType: "S"
-      - AttributeName: "TargetAMI"
-        AttributeType: "S"
-    KeySchema:
-      - AttributeName: "SourceAMI"
-        KeyType: HASH
-      - AttributeName: "TargetAMI"
-        KeyType: RANGE
-    ProvisionedThroughput:
-      ReadCapacityUnits: 5
-      WriteCapacityUnits: 5
-    TableName: !Ref AmiTableName
+  TrackingTable:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "SourceAMI"
+          AttributeType: "S"
+        - AttributeName: "TargetAMI"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "SourceAMI"
+          KeyType: HASH
+        - AttributeName: "TargetAMI"
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      TableName: !Ref AmiTableName
