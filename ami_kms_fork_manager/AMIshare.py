@@ -192,6 +192,13 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             else:
                 print("\tImage: %s has been created and is available" % new_image['ImageId'])
 
+            for tag in config_data['OtherTags']:
+                function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
+                                                        securitygroup_id, temp_instance['Instances'][0]['SubnetId'],
+                                                        temp_sg_details['SecurityGroups'][0]['VpcId']],
+                                             Tags=[{'Key': tag['TagKey'],
+                                                    'Value': tag['TagValue']}])
+
             try:
                 function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
                 function_ec2_cli.get_waiter('instance_terminated').wait(
@@ -508,7 +515,7 @@ if __name__ == '__main__':
 
                         try:
                             MAIN_DYNA_CLI.put_item(TableName=config_data['General'][0]['DynamoDBTable'],
-                                                   Item={ami_id:put_item})
+                                                   Item={put_item})
                             print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
                         except botocore.exceptions.ClientError as DynaError:
                             rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],

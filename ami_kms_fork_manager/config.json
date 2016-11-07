@@ -19,6 +19,21 @@
       "SecurityTagValue" : ""
     }
   ],
+  "OtherTags" : [
+    {
+      "TagKey" : "",
+      "TagValue" : ""
+    },
+    {
+      "TagKey" : "",
+      "TagValue" : ""
+    },
+    {
+      "TagKey" : "",
+      "TagValue" : ""
+    }
+  ],
+
   "Accounts" : [
     {
       "AccountNumber" : "",
