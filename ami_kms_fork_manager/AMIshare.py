@@ -353,14 +353,13 @@ def create_html_doc(ami_details_list):
     </body>
     </html>"""
 
-        bucket_key = "%s/%s.html" % (config_data['General'][0]['HTML_S3keyLocation'], int(time.time()))
-
-        MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
+    bucket_key = "%s/%s.html" % (config_data['General'][0]['HTML_S3keyLocation'], int(time.time()))
+    MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
                                Key=bucket_key,
                                Body=s3_input)
-        print("Created HTML output: %s" % bucket_key.split("/")[-1])
+    print("Created HTML output: %s" % bucket_key.split("/")[-1])
 
-        return bucket_key
+    return bucket_key
 
 
 def rollback(amis, put_items, html_keys, json_keys, error):
