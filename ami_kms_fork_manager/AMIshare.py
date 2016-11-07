@@ -299,13 +299,12 @@ def json_data_upload(json_data_list):
     """Creates JSON file for computer reading."""
     bucket_key = "%s/%s.json" % (config_data['General'][0]['JSON_S3keyLocation'], int(time.time()))
 
-    for json_data in json_data_list:
-        MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['JSON_S3bucket'],
-                               Key=bucket_key,
-                               Body=json.dumps(json_data,
-                                               sort_keys=True,
-                                               indent=4,
-                                               separators=(',', ': ')))
+    MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['JSON_S3bucket'],
+                           Key=bucket_key,
+                           Body=json.dumps({'AmiInfo': json_data_list},
+                                           sort_keys=True,
+                                           indent=4,
+                                           separators=(',', ': ')))
     print("Created JSON output: %s" % bucket_key.split("/")[-1])
 
     return bucket_key
@@ -355,8 +354,8 @@ def create_html_doc(ami_details_list):
 
     bucket_key = "%s/%s.html" % (config_data['General'][0]['HTML_S3keyLocation'], int(time.time()))
     MAIN_S3_CLI.put_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
-                               Key=bucket_key,
-                               Body=s3_input)
+                           Key=bucket_key,
+                           Body=s3_input)
     print("Created HTML output: %s" % bucket_key.split("/")[-1])
 
     return bucket_key
@@ -514,7 +513,6 @@ if __name__ == '__main__':
                         except Exception as DynaError:
                             rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
                                      error=DynaError)
-
 
                         print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
 
