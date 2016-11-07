@@ -424,10 +424,7 @@ if __name__ == '__main__':
         except botocore.exceptions.ClientError as NoBucket:
             raise NoBucket
 
-    try:
-        MAIN_DYNA_CLI.describe_table(TableName=config_data['General'][0]['DynamoDBTable'])
-    except botocore.exceptions.ClientError as NoTable:
-        raise NoTable
+    dynamodb = boto3.resource('dynamodb')
 
     certain_ami_id = share_ami()
 
@@ -513,13 +510,10 @@ if __name__ == '__main__':
 
                         PUT_ITEM_LIST.append(put_item)
 
-                        try:
-                            MAIN_DYNA_CLI.put_item(TableName=config_data['General'][0]['DynamoDBTable'],
-                                                   Item=put_item)
-                            print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
-                        except botocore.exceptions.ClientError as DynaError:
-                            rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
-                                     error=DynaError)
+                        table = dynamodb.Table(config_data['General'][0]['DynamoDBTable'])
+                        table.put_item(Item=put_item)
+
+                        print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
 
                         j_data = {
                             'awsaccountnumber': account_num,
