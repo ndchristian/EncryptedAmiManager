@@ -14,12 +14,10 @@
       "HTML_S3bucket" : "",
       "HTML_S3keyLocation" : "",
       "JSON_S3bucket" : "",
-      "JSON_S3keyLocation" : "",
-      "SecurityTagKey" : "",
-      "SecurityTagValue" : ""
+      "JSON_S3keyLocation" : ""
     }
   ],
-  "OtherTags" : [
+  "Tags" : [
     {
       "TagKey" : "",
       "TagValue" : ""

@@ -171,9 +171,6 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 
             function_ec2_cli.get_waiter('instance_running').wait(
                 InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-            function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'], securitygroup_id],
-                                         Tags=[{'Key': config_data['General'][0]['SecurityTagKey'],
-                                                'Value': config_data['General'][0]['SecurityTagValue']}])
 
             print("\tInstance is now running, stopping instance...")
             function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
@@ -198,9 +195,10 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                 print("\tImage: %s has been created and is available" % new_image['ImageId'])
 
             # Adds tags to all temporary resources such as for cost tracking purposes:
-            for tag in config_data['OtherTags']:
+            for tag in config_data['Tags']:
                 function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
-                                                        securitygroup_id, temp_instance['Instances'][0]['SubnetId'],
+                                                        securitygroup_id,
+                                                        temp_instance['Instances'][0]['SubnetId'],
                                                         temp_sg_details['SecurityGroups'][0]['VpcId']],
                                              Tags=[{'Key': tag['TagKey'],
                                                     'Value': tag['TagValue']}])
