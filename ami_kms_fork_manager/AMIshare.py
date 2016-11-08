@@ -197,14 +197,13 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             else:
                 print("\tImage: %s has been created and is available" % new_image['ImageId'])
 
-            # Adds tags to all temporary resources such as for cost tracking purposes
-            if config_data['OtherTags']:
-                for tag in config_data['OtherTags']:
-                    function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
-                                                            securitygroup_id, temp_instance['Instances'][0]['SubnetId'],
-                                                            temp_sg_details['SecurityGroups'][0]['VpcId']],
-                                                 Tags=[{'Key': tag['TagKey'],
-                                                        'Value': tag['TagValue']}])
+            # Adds tags to all temporary resources such as for cost tracking purposes:
+            for tag in config_data['OtherTags']:
+                function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
+                                                        securitygroup_id, temp_instance['Instances'][0]['SubnetId'],
+                                                        temp_sg_details['SecurityGroups'][0]['VpcId']],
+                                             Tags=[{'Key': tag['TagKey'],
+                                                    'Value': tag['TagValue']}])
 
             # Terminates and deletes all temporary resources
             try:
@@ -223,13 +222,12 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
         except botocore.exceptions.ClientError as CreateInstanceErr:
             print(CreateInstanceErr.response['Error']['Code'])
             if CreateInstanceErr.response['Error']['Code'] == 'InvalidGroup.NotFound':
-
-                function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-                function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
-                function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
-
                 tryagain_counter += 1
+
                 if tryagain_counter == 3:
+                    function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+                    function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
+                    function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
                     rollback(amis=AMI_LIST,
                              put_items=PUT_ITEM_LIST,
                              html_keys=HTML_DOC_LIST,
@@ -239,14 +237,6 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                     print("Something when wrong. Trying again...")
                     continue
 
-            function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-            function_ec2_cli.delete_subnet(SubnetId=funct_subnet_id)
-            function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
-            rollback(amis=AMI_LIST,
-                     put_items=PUT_ITEM_LIST,
-                     html_keys=HTML_DOC_LIST,
-                     json_keys=JSON_DOC_LIST,
-                     error=CreateInstanceErr)
 
         except botocore.exceptions.WaiterError:
             function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
