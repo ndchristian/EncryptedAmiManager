@@ -196,6 +196,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 
             # Adds tags to all temporary resources such as for cost tracking purposes:
             for tag in config_data['Tags']:
+                print(tag['TagKey'],tag['TagValue'])
                 function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
                                                         securitygroup_id,
                                                         temp_instance['Instances'][0]['SubnetId'],
