@@ -83,6 +83,7 @@ def create_subnet(function_ec2_cli, funct_vpc_id):
                 return temp_subnet['Subnet']['SubnetId']
 
             except botocore.exceptions.WaiterError as subnetError:
+                # Gives creating the subnet a little more time flexibility
                 if counter == 5:
                     function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
                     rollback(amis=AMI_LIST,
@@ -123,6 +124,7 @@ def create_sg(function_ec2_cli, funct_vpc_id):
                 return temp_sg['GroupId']
 
             except botocore.exceptions.ClientError as WaiterError:
+                # Gives the creation of the security group a little more of a chance
                 if counter == 10:
                     function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
                     rollback(amis=AMI_LIST,
@@ -138,6 +140,7 @@ def create_sg(function_ec2_cli, funct_vpc_id):
 
         return temp_sg['GroupId']
 
+    # In case something goes wrong when creating a security group
     except botocore.exceptions.ClientError as SGerror:
         function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
         rollback(amis=AMI_LIST,
@@ -156,6 +159,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
     temp_sg_details = function_ec2_cli.describe_security_groups(GroupIds=[securitygroup_id])
 
     while True:
+        # Attempts to create a encrypted and unencrypted AMI
         try:
             print("\tCreating temporary instance...")
             temp_instance = function_ec2_cli.run_instances(ImageId=ami,
@@ -182,23 +186,27 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             new_image = function_ec2_cli.create_image(InstanceId=temp_instance['Instances'][0]['InstanceId'],
                                                       Name=new_image_name[:128])
 
+            # Checks if the new encrypted image exists and is available
             function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
             function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
 
-            statis_check = function_ec2_cli.describe_images(ImageIds=[new_image['ImageId']])
+            status_check = function_ec2_cli.describe_images(ImageIds=[new_image['ImageId']])
 
-            if statis_check['Images'][0]['State'] != 'available':
+            if status_check['Images'][0]['State'] != 'available':
                 print("Something has gone wrong when trying to create %s" % new_image['ImageId'])
             else:
                 print("\tImage: %s has been created and is available" % new_image['ImageId'])
 
-            for tag in config_data['OtherTags']:
-                function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
-                                                        securitygroup_id, temp_instance['Instances'][0]['SubnetId'],
-                                                        temp_sg_details['SecurityGroups'][0]['VpcId']],
-                                             Tags=[{'Key': tag['TagKey'],
-                                                    'Value': tag['TagValue']}])
+            # Adds tags to all temporary resources such as for cost tracking purposes
+            if config_data['OtherTags']:
+                for tag in config_data['OtherTags']:
+                    function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
+                                                            securitygroup_id, temp_instance['Instances'][0]['SubnetId'],
+                                                            temp_sg_details['SecurityGroups'][0]['VpcId']],
+                                                 Tags=[{'Key': tag['TagKey'],
+                                                        'Value': tag['TagValue']}])
 
+            # Terminates and deletes all temporary resources
             try:
                 function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
                 function_ec2_cli.get_waiter('instance_terminated').wait(
