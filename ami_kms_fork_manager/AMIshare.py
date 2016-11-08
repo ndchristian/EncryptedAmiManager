@@ -161,7 +161,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
     while True:
         # Attempts to create a encrypted and unencrypted AMI
         try:
-            print("\tCreating temporary instance...")
+            print("\tCreating temporary instance with AMI:%s..." % ami)
             temp_instance = function_ec2_cli.run_instances(ImageId=ami,
                                                            MinCount=1,
                                                            MaxCount=1,
@@ -268,6 +268,7 @@ def share_ami():
                                                            funct_vpc_id=share_vpc_id),
                                 funct_subnet_id=share_subnet_id,
                                 funct_account_id='main_account')
+    print("Image recreated with new id: %s" % new_ami_id)
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
