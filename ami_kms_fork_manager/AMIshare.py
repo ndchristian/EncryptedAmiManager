@@ -158,8 +158,10 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 
     temp_sg_details = function_ec2_cli.describe_security_groups(GroupIds=[securitygroup_id])
 
+    print("%s:" % funct_account_id)
     while True:
         # Attempts to create a encrypted and unencrypted AMI
+        # The reason to recreate the AMI in the main account is because of permission issues
         try:
             print("\tCreating temporary instance with AMI:%s..." % ami)
             temp_instance = function_ec2_cli.run_instances(ImageId=ami,
@@ -171,6 +173,17 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 
             function_ec2_cli.get_waiter('instance_running').wait(
                 InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+
+            # Adds tags to all temporary resources such as for cost tracking purposes:
+            for tag in config_data['Tags']:
+                print(tag['TagKey'], tag['TagValue'])
+                tag_output = function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
+                                                                     securitygroup_id,
+                                                                     temp_instance['Instances'][0]['SubnetId'],
+                                                                     temp_sg_details['SecurityGroups'][0]['VpcId']],
+                                                          Tags=[{'Key': tag['TagKey'],
+                                                                 'Value': tag['TagValue']}])
+                print(tag_output)
 
             print("\tInstance is now running, stopping instance...")
             function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
@@ -193,17 +206,6 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                 print("Something has gone wrong when trying to create %s" % new_image['ImageId'])
             else:
                 print("\tImage: %s has been created and is available" % new_image['ImageId'])
-
-            # Adds tags to all temporary resources such as for cost tracking purposes:
-            for tag in config_data['Tags']:
-                print(tag['TagKey'], tag['TagValue'])
-                tag_output = function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
-                                                                     securitygroup_id,
-                                                                     temp_instance['Instances'][0]['SubnetId'],
-                                                                     temp_sg_details['SecurityGroups'][0]['VpcId']],
-                                                          Tags=[{'Key': tag['TagKey'],
-                                                                 'Value': tag['TagValue']}])
-                print(tag_output)
 
             # Terminates and deletes all temporary resources
             try:
@@ -260,7 +262,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
-    print("Sharing AMI: %s..." % ami_id)
+
     share_vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
@@ -270,7 +272,10 @@ def share_ami():
                                                            funct_vpc_id=share_vpc_id),
                                 funct_subnet_id=share_subnet_id,
                                 funct_account_id='main_account')
+
     print("Image recreated with new id: %s" % new_ami_id)
+    print("Sharing AMI: %s..." % new_ami_id)
+
     MAIN_EC2_CLI.modify_image_attribute(
         ImageId=new_ami_id,
         OperationType='add',
@@ -409,6 +414,9 @@ def rollback(amis, put_items, html_keys, json_keys, error):
 
 
 if __name__ == '__main__':
+
+    print("Running ami_kms_fork_manager...")
+
     config_data = config()
 
     ami_id = config_data['General'][0]['AMI_ID']
@@ -446,7 +454,6 @@ if __name__ == '__main__':
         # Connects to each region and copies the AMI there.
         for acc_data in config_data['Accounts']:
             if account_num == acc_data['AccountNumber']:
-                print("%s:" % account_num)
                 for region_data in acc_data['Regions']:
 
                     ec2_cli = session.client('ec2', region_name=region_data)
