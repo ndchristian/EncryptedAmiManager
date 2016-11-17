@@ -15,6 +15,7 @@ limitations under the License.
 from __future__ import print_function
 
 import json
+import sys
 import time
 
 import boto3
@@ -412,7 +413,7 @@ def rollback(amis, put_items, html_keys, json_keys, error):
                     pass
 
     print("Finished rolling back.")
-    raise error
+    sys.exit(error)
 
 
 if __name__ == '__main__':
@@ -519,6 +520,7 @@ if __name__ == '__main__':
                             table = dynamodb.Table(config_data['General'][0]['DynamoDBTable'])
                             table.put_item(Item=put_item)
                         except Exception as DynaError:
+                            print(DynaError)
                             rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
                                      error=DynaError)
 
