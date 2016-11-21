@@ -22,14 +22,22 @@ import boto3
 import botocore
 
 # User must set path to the config file.
+
 CONFIG_PATH = 'config.json'
+
+with open(CONFIG_PATH, 'r') as j:
+    config_data = json.loads(j.read())
+
+if not config_data['General'][0]['Region']:
+    REGION = boto3.session.Session().region_name
+else:
+    REGION = config_data['General'][0]['Region']
 
 MAIN_EC2_CLI = boto3.client('ec2')
 MAIN_STS_CLI = boto3.client('sts')
 MAIN_DYNA_CLI = boto3.client('dynamodb')
+MAIN_DYNA_RESC = boto3.resource('dynamodb')
 MAIN_S3_CLI = boto3.client('s3')
-
-REGION = boto3.session.Session().region_name
 
 STUCK_INSTANCES = []
 FAILED_ACCOUNTS = []
@@ -39,14 +47,6 @@ JSON_INFO_LIST = []
 JSON_DOC_LIST = []
 PUT_ITEM_LIST = []
 HTML_DOC_LIST = []
-
-
-def config():
-    """Grabs all data from the config file"""
-    with open(CONFIG_PATH, 'r') as j:
-        read_data = json.loads(j.read())
-
-    return read_data
 
 
 def create_vpc(function_ec2_cli):
@@ -177,14 +177,12 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 
             # Adds tags to all temporary resources such as for cost tracking purposes:
             for tag in config_data['Tags']:
-                print(tag['TagKey'], tag['TagValue'])
-                tag_output = function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
-                                                                     securitygroup_id,
-                                                                     temp_instance['Instances'][0]['SubnetId'],
-                                                                     temp_sg_details['SecurityGroups'][0]['VpcId']],
-                                                          Tags=[{'Key': tag['TagKey'],
-                                                                 'Value': tag['TagValue']}])
-                print(tag_output)
+                function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
+                                                        securitygroup_id,
+                                                        temp_instance['Instances'][0]['SubnetId'],
+                                                        temp_sg_details['SecurityGroups'][0]['VpcId']],
+                                             Tags=[{'Key': tag['TagKey'],
+                                                    'Value': tag['TagValue']}])
 
             print("\tInstance is now running, stopping instance...")
             function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
@@ -262,7 +260,6 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 
 def share_ami():
     """Adds permission for each account to be able to use the AMI."""
-
 
     share_vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
@@ -407,7 +404,7 @@ def rollback(amis, put_items, html_keys, json_keys, error):
             if image_to_delete['AccountNumber'] == rollback_account['AccountNumber']:
                 try:
                     rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMI_ID'])
-                    rollback_ec2_cli.deregister_image(ImageId = image_to_delete['Encrypted_AMI_ID'])
+                    rollback_ec2_cli.deregister_image(ImageId=image_to_delete['Encrypted_AMI_ID'])
                 except botocore.exceptions.ClientError as deRegisterError:
                     print(deRegisterError)
                     pass
@@ -420,8 +417,6 @@ if __name__ == '__main__':
 
     print("Running ami_kms_fork_manager...")
 
-    config_data = config()
-
     ami_id = config_data['General'][0]['AMI_ID']
     role_name = config_data['General'][0]['RoleName']
     account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
@@ -431,8 +426,6 @@ if __name__ == '__main__':
             MAIN_S3_CLI.head_bucket(Bucket=bucket)
         except botocore.exceptions.ClientError as NoBucket:
             raise NoBucket
-
-    dynamodb = boto3.resource('dynamodb')
 
     certain_ami_id = share_ami()
 
@@ -517,7 +510,7 @@ if __name__ == '__main__':
 
                         PUT_ITEM_LIST.append(put_item)
                         try:
-                            table = dynamodb.Table(config_data['General'][0]['DynamoDBTable'])
+                            table = MAIN_DYNA_RESC.Table(config_data['General'][0]['DynamoDBTable'])
                             table.put_item(Item=put_item)
                         except Exception as DynaError:
                             print(DynaError)
