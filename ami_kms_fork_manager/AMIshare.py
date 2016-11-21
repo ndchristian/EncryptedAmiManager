@@ -33,11 +33,11 @@ if not config_data['General'][0]['Region']:
 else:
     REGION = config_data['General'][0]['Region']
 
-MAIN_EC2_CLI = boto3.client('ec2')
-MAIN_STS_CLI = boto3.client('sts')
-MAIN_DYNA_CLI = boto3.client('dynamodb')
-MAIN_DYNA_RESC = boto3.resource('dynamodb')
-MAIN_S3_CLI = boto3.client('s3')
+MAIN_EC2_CLI = boto3.client('ec2',region_name = REGION)
+MAIN_STS_CLI = boto3.client('sts',region_name = REGION)
+MAIN_DYNA_CLI = boto3.client('dynamodb',region_name = REGION)
+MAIN_DYNA_RESC = boto3.resource('dynamodb',region_name = REGION)
+MAIN_S3_CLI = boto3.client('s3',region_name = REGION)
 
 STUCK_INSTANCES = []
 FAILED_ACCOUNTS = []
@@ -513,7 +513,6 @@ if __name__ == '__main__':
                             table = MAIN_DYNA_RESC.Table(config_data['General'][0]['DynamoDBTable'])
                             table.put_item(Item=put_item)
                         except Exception as DynaError:
-                            print(DynaError)
                             rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
                                      error=DynaError)
 
