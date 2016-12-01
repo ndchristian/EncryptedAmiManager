@@ -33,11 +33,11 @@ if not config_data['General'][0]['Region']:
 else:
     REGION = config_data['General'][0]['Region']
 
-MAIN_EC2_CLI = boto3.client('ec2',region_name = REGION)
-MAIN_STS_CLI = boto3.client('sts',region_name = REGION)
-MAIN_DYNA_CLI = boto3.client('dynamodb',region_name = REGION)
-MAIN_DYNA_RESC = boto3.resource('dynamodb',region_name = REGION)
-MAIN_S3_CLI = boto3.client('s3',region_name = REGION)
+MAIN_EC2_CLI = boto3.client('ec2', region_name=REGION)
+MAIN_STS_CLI = boto3.client('sts', region_name=REGION)
+MAIN_DYNA_CLI = boto3.client('dynamodb', region_name=REGION)
+MAIN_DYNA_RESC = boto3.resource('dynamodb', region_name=REGION)
+MAIN_S3_CLI = boto3.client('s3', region_name=REGION)
 
 STUCK_INSTANCES = []
 FAILED_ACCOUNTS = []
