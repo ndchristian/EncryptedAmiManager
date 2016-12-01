@@ -401,7 +401,6 @@ def rollback(amis, put_items, html_keys, json_keys, error):
         for image_to_delete in amis:
             if image_to_delete['AccountNumber'] == rollback_account['AccountNumber']:
                 try:
-                    rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMI_ID'])
                     rollback_ec2_cli.deregister_image(ImageId=image_to_delete['Encrypted_AMI_ID'])
                 except botocore.exceptions.ClientError as deRegisterError:
                     print(deRegisterError)
@@ -482,11 +481,17 @@ if __name__ == '__main__':
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
+                        ec2_cli.get_waiter('image_exists').wait(ImageIds=[encrypted_ami['ImageId']])
+                        ec2_cli.get_waiter('image_available').wait(ImageIds=[encrypted_ami['ImageId']])
+                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
+
+                        print("Deregistering unencrypted AMI...")
+                        ec2_cli.deregister_image(ImageId=account_ami)
+
                         AMI_LIST.append({'AccountNumber': account_num,
                                          'Region': REGION,
                                          'Encrypted_AMI_ID': encrypted_ami['ImageId'],
                                          'AMI_ID': account_ami})
-                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
 
                         # Gathers DB and json values
 
