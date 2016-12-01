@@ -477,7 +477,7 @@ if __name__ == '__main__':
                         encrypted_ami = ec2_cli.copy_image(
                             SourceRegion=REGION,
                             SourceImageId=account_ami,
-                            Name="Encrypted-%s" % image_details['Images'][0]['Name'],
+                            Name="encrypted-%s" % image_details['Images'][0]['Name'],
                             Description=image_description,
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
