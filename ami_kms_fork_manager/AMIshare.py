@@ -33,11 +33,11 @@ if not config_data['General'][0]['Region']:
 else:
     REGION = config_data['General'][0]['Region']
 
-MAIN_EC2_CLI = boto3.client('ec2', region_name=REGION)
-MAIN_STS_CLI = boto3.client('sts', region_name=REGION)
-MAIN_DYNA_CLI = boto3.client('dynamodb', region_name=REGION)
-MAIN_DYNA_RESC = boto3.resource('dynamodb', region_name=REGION)
-MAIN_S3_CLI = boto3.client('s3', region_name=REGION)
+MAIN_EC2_CLI = boto3.client('ec2',region_name = REGION)
+MAIN_STS_CLI = boto3.client('sts',region_name = REGION)
+MAIN_DYNA_CLI = boto3.client('dynamodb',region_name = REGION)
+MAIN_DYNA_RESC = boto3.resource('dynamodb',region_name = REGION)
+MAIN_S3_CLI = boto3.client('s3',region_name = REGION)
 
 STUCK_INSTANCES = []
 FAILED_ACCOUNTS = []
@@ -264,35 +264,37 @@ def share_ami():
     share_vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
-    ami_id = config_data['General'][0]['AMI_ID']
-    try:
-        print("Sharing AMI: %s..." % ami_id)
-        MAIN_EC2_CLI.modify_image_attribute(
-            ImageId=ami_id,
-            OperationType='add',
-            UserIds=account_ids,
-            LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
-
-    except botocore.exceptions.ClientError as share_error:
-        print("Failed to share AMI: %s, recreating AMI...")
-        print(share_error)
-        ami_id = recreate_image(ami=ami_id,
+    new_ami_id = recreate_image(ami=ami_id,
                                 function_ec2_cli=MAIN_EC2_CLI,
                                 securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
                                                            funct_vpc_id=share_vpc_id),
                                 funct_subnet_id=share_subnet_id,
                                 funct_account_id='main_account')
 
-        print("Image recreated with new id: %s" % new_ami_id)
-        print("Sharing AMI: %s..." % new_ami_id)
+    print("Image recreated with new id: %s" % new_ami_id)
+    print("Sharing AMI: %s..." % new_ami_id)
 
+    MAIN_EC2_CLI.modify_image_attribute(
+        ImageId=new_ami_id,
+        OperationType='add',
+        UserIds=account_ids,
+        LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
+
+    return new_ami_id
+
+
+def revoke_ami_access():
+    """Revokes access to the specified AMI."""
+
+    print("Revoking access to AMI...")
+    try:
         MAIN_EC2_CLI.modify_image_attribute(
-            ImageId=new_ami_id,
-            OperationType='add',
+            ImageId=ami_id,
+            OperationType='remove',
             UserIds=account_ids,
-            LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
-    print("ami_id:",ami_id)
-    return ami_id
+            LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
+    except botocore.exceptions.ClientError as ModifyImageError:
+        raise ModifyImageError
 
 
 def json_data_upload(json_data_list):
@@ -322,14 +324,12 @@ def create_html_doc(ami_details_list):
     <!DOCTYPE html>
     <html>
     <body>
-
     <h3>Source AMI: %s</h3>
     <h3>Name: %s</h3>
     <h3>OS: %s</h3>
     <h3>Description: %s</h3>
     <h3>Date: %s</h3>
     <h3>ARN: %s</h3>
-
     <p>______________________</p>
     <h3>Encrypted Root AMIs</h3>
     <p>_____________________</p>
@@ -363,21 +363,11 @@ def create_html_doc(ami_details_list):
 
 def rollback(amis, put_items, html_keys, json_keys, error):
     """Rollbacks all AWS actions done in case something goes wrong."""
-
-    print("Revoking access to AMI...")
-    try:
-        MAIN_EC2_CLI.modify_image_attribute(
-            ImageId=share_ami_id,
-            OperationType='remove',
-            UserIds=account_ids,
-            LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
-    except botocore.exceptions.ClientError as ModifyImageError:
-        raise ModifyImageError
-
     print("Rolling back...")
+    revoke_ami_access()
 
     try:
-        if put_items:
+        if not put_items:
             for rollback_item in put_items:
                 MAIN_DYNA_CLI.delete_item(TableName=config_data['General'][0]['DynamoDBTable'],
                                           Key=rollback_item)
@@ -411,6 +401,7 @@ def rollback(amis, put_items, html_keys, json_keys, error):
         for image_to_delete in amis:
             if image_to_delete['AccountNumber'] == rollback_account['AccountNumber']:
                 try:
+                    rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMI_ID'])
                     rollback_ec2_cli.deregister_image(ImageId=image_to_delete['Encrypted_AMI_ID'])
                 except botocore.exceptions.ClientError as deRegisterError:
                     print(deRegisterError)
@@ -424,12 +415,9 @@ if __name__ == '__main__':
 
     print("Running ami_kms_fork_manager...")
 
-    share_ami_id = share_ami()
-    print("foobar")
-
+    ami_id = config_data['General'][0]['AMI_ID']
     role_name = config_data['General'][0]['RoleName']
     account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
-    job_number = 'jobnum-%s' % int(time.time())
 
     for bucket in [config_data['General'][0]['JSON_S3bucket'], config_data['General'][0]['HTML_S3bucket']]:
         try:
@@ -437,7 +425,9 @@ if __name__ == '__main__':
         except botocore.exceptions.ClientError as NoBucket:
             raise NoBucket
 
-    image_details = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])
+    certain_ami_id = share_ami()
+
+    image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
 
     for account_id in account_ids:
         # STS allows you to connect to other accounts using assumed roles.
@@ -475,7 +465,7 @@ if __name__ == '__main__':
 
                         subnet_id = create_subnet(function_ec2_cli=ec2_cli, funct_vpc_id=vpc_id)
 
-                        account_ami = recreate_image(ami=ami_id,
+                        account_ami = recreate_image(ami=certain_ami_id,
                                                      function_ec2_cli=ec2_cli,
                                                      securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
                                                                                 funct_vpc_id=vpc_id),
@@ -486,21 +476,16 @@ if __name__ == '__main__':
                         encrypted_ami = ec2_cli.copy_image(
                             SourceRegion=REGION,
                             SourceImageId=account_ami,
-                            Name="encrypted-%s" % image_details['Images'][0]['Name'],
+                            Name="Encrypted-%s" % image_details['Images'][0]['Name'],
                             Description=image_description,
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
-                        ec2_cli.get_waiter('image_exists').wait(ImageIds=[encrypted_ami['ImageId']])
-                        ec2_cli.get_waiter('image_available').wait(ImageIds=[encrypted_ami['ImageId']])
-                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
-
-                        print("Deregistering unencrypted AMI..")
-                        ec2_cli.deregister_image(ImageId=account_ami)
-
                         AMI_LIST.append({'AccountNumber': account_num,
                                          'Region': REGION,
-                                         'Encrypted_AMI_ID': encrypted_ami['ImageId']})
+                                         'Encrypted_AMI_ID': encrypted_ami['ImageId'],
+                                         'AMI_ID': account_ami})
+                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
 
                         # Gathers DB and json values
 
@@ -517,7 +502,7 @@ if __name__ == '__main__':
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
                             'comments:': config_data['General'][0]['Comments'],
-                            'jobnum': job_number,
+                            'jobnum': 'jobnum-%s' % int(time.time()),
                             'epochtime': int(time.time()),
                             'logicaldelete': 0}
 
@@ -540,7 +525,9 @@ if __name__ == '__main__':
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
                             'tempvpc': vpc_id,
-                            'tempsubnet': subnet_id}
+                            'tempsubnet': subnet_id
+
+                        }
 
                         JSON_INFO_LIST.append(j_data)
 
