@@ -382,7 +382,7 @@ def rollback(amis, put_items, html_keys, json_keys, error):
     revoke_ami_access()
 
     try:
-        if not put_items:
+        if put_items:
             for rollback_item in put_items:
                 MAIN_DYNA_CLI.delete_item(TableName=config_data['General'][0]['DynamoDBTable'],
                                           Key=rollback_item)
@@ -432,6 +432,7 @@ if __name__ == '__main__':
     ami_id = share_ami()
     role_name = config_data['General'][0]['RoleName']
     account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
+    job_number = 'jobnum-%s' % int(time.time())
 
     for bucket in [config_data['General'][0]['JSON_S3bucket'], config_data['General'][0]['HTML_S3bucket']]:
         try:
@@ -519,7 +520,7 @@ if __name__ == '__main__':
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
                             'comments:': config_data['General'][0]['Comments'],
-                            'jobnum': 'jobnum-%s' % int(time.time()),
+                            'jobnum': job_number,
                             'epochtime': int(time.time()),
                             'logicaldelete': 0}
 
