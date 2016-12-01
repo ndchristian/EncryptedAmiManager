@@ -264,21 +264,21 @@ def share_ami():
     share_vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
-    sharing_ami = config_data['General'][0]['AMI_ID']
+    ami_id = config_data['General'][0]['AMI_ID']
     try:
-        print("Sharing AMI: %s..." % sharing_ami)
+        print("Sharing AMI: %s..." % ami_id)
         MAIN_EC2_CLI.modify_image_attribute(
-            ImageId=sharing_ami,
+            ImageId=ami_id,
             OperationType='add',
             UserIds=account_ids,
             LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
 
-        return sharing_ami
+        return ami_id
 
     except botocore.exceptions.ClientError as share_error:
         print("Failed to share AMI: %s, recreating AMI...")
         print(share_error)
-        new_ami_id = recreate_image(ami=sharing_ami,
+        new_ami_id = recreate_image(ami=ami_id,
                                     function_ec2_cli=MAIN_EC2_CLI,
                                     securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
                                                                funct_vpc_id=share_vpc_id),
@@ -430,7 +430,10 @@ if __name__ == '__main__':
 
     print("Running ami_kms_fork_manager...")
 
-    ami_id = share_ami()
+    share_ami_id = share_ami()
+    ami_id = main_ami_id
+    print(ami_id)
+
     role_name = config_data['General'][0]['RoleName']
     account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
     job_number = 'jobnum-%s' % int(time.time())
