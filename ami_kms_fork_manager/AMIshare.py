@@ -416,7 +416,6 @@ def rollback(amis, put_items, html_keys, json_keys, error):
         for image_to_delete in amis:
             if image_to_delete['AccountNumber'] == rollback_account['AccountNumber']:
                 try:
-                    rollback_ec2_cli.deregister_image(ImageId=image_to_delete['AMI_ID'])
                     rollback_ec2_cli.deregister_image(ImageId=image_to_delete['Encrypted_AMI_ID'])
                 except botocore.exceptions.ClientError as deRegisterError:
                     print(deRegisterError)
@@ -430,7 +429,7 @@ if __name__ == '__main__':
 
     print("Running ami_kms_fork_manager...")
 
-    ami_id = config_data['General'][0]['AMI_ID']
+    ami_id = share_ami()
     role_name = config_data['General'][0]['RoleName']
     account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
 
@@ -440,9 +439,7 @@ if __name__ == '__main__':
         except botocore.exceptions.ClientError as NoBucket:
             raise NoBucket
 
-    certain_ami_id = share_ami()
-
-    image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
+    image_details = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])
 
     for account_id in account_ids:
         # STS allows you to connect to other accounts using assumed roles.
@@ -480,7 +477,7 @@ if __name__ == '__main__':
 
                         subnet_id = create_subnet(function_ec2_cli=ec2_cli, funct_vpc_id=vpc_id)
 
-                        account_ami = recreate_image(ami=certain_ami_id,
+                        account_ami = recreate_image(ami=ami_id,
                                                      function_ec2_cli=ec2_cli,
                                                      securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
                                                                                 funct_vpc_id=vpc_id),
@@ -491,16 +488,21 @@ if __name__ == '__main__':
                         encrypted_ami = ec2_cli.copy_image(
                             SourceRegion=REGION,
                             SourceImageId=account_ami,
-                            Name="Encrypted-%s" % image_details['Images'][0]['Name'],
+                            Name="encrypted-%s" % image_details['Images'][0]['Name'],
                             Description=image_description,
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
+                        ec2_cli.get_waiter('image_exists').wait(ImageIds=[encrypted_ami['ImageId']])
+                        ec2_cli.get_waiter('image_available').wait(ImageIds=[encrypted_ami['ImageId']])
+                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
+
+                        print("Deregistering unencrypted AMI..")
+                        ec2_cli.deregister_image(ImageId=account_ami)
+
                         AMI_LIST.append({'AccountNumber': account_num,
                                          'Region': REGION,
-                                         'Encrypted_AMI_ID': encrypted_ami['ImageId'],
-                                         'AMI_ID': account_ami})
-                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
+                                         'Encrypted_AMI_ID': encrypted_ami['ImageId']})
 
                         # Gathers DB and json values
 
@@ -540,9 +542,7 @@ if __name__ == '__main__':
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
                             'tempvpc': vpc_id,
-                            'tempsubnet': subnet_id
-
-                        }
+                            'tempsubnet': subnet_id}
 
                         JSON_INFO_LIST.append(j_data)
 
