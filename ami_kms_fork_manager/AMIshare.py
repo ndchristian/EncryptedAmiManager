@@ -297,20 +297,6 @@ def share_ami():
         return new_ami_id
 
 
-def revoke_ami_access():
-    """Revokes access to the specified AMI."""
-
-    print("Revoking access to AMI...")
-    try:
-        MAIN_EC2_CLI.modify_image_attribute(
-            ImageId=share_ami_id,
-            OperationType='remove',
-            UserIds=account_ids,
-            LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
-    except botocore.exceptions.ClientError as ModifyImageError:
-        raise ModifyImageError
-
-
 def json_data_upload(json_data_list):
     """Creates JSON file for computer reading."""
     bucket_key = "%s/%s.json" % (config_data['General'][0]['JSON_S3keyLocation'], int(time.time()))
@@ -379,8 +365,18 @@ def create_html_doc(ami_details_list):
 
 def rollback(amis, put_items, html_keys, json_keys, error):
     """Rollbacks all AWS actions done in case something goes wrong."""
+
+    print("Revoking access to AMI...")
+    try:
+        MAIN_EC2_CLI.modify_image_attribute(
+            ImageId=share_ami_id,
+            OperationType='remove',
+            UserIds=account_ids,
+            LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
+    except botocore.exceptions.ClientError as ModifyImageError:
+        raise ModifyImageError
+
     print("Rolling back...")
-    revoke_ami_access()
 
     try:
         if put_items:
