@@ -33,11 +33,11 @@ if not config_data['General'][0]['Region']:
 else:
     REGION = config_data['General'][0]['Region']
 
-MAIN_EC2_CLI = boto3.client('ec2',region_name = REGION)
-MAIN_STS_CLI = boto3.client('sts',region_name = REGION)
-MAIN_DYNA_CLI = boto3.client('dynamodb',region_name = REGION)
-MAIN_DYNA_RESC = boto3.resource('dynamodb',region_name = REGION)
-MAIN_S3_CLI = boto3.client('s3',region_name = REGION)
+MAIN_EC2_CLI = boto3.client('ec2', region_name=REGION)
+MAIN_STS_CLI = boto3.client('sts', region_name=REGION)
+MAIN_DYNA_CLI = boto3.client('dynamodb', region_name=REGION)
+MAIN_DYNA_RESC = boto3.resource('dynamodb', region_name=REGION)
+MAIN_S3_CLI = boto3.client('s3', region_name=REGION)
 
 STUCK_INSTANCES = []
 FAILED_ACCOUNTS = []
@@ -264,23 +264,36 @@ def share_ami():
     share_vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
-    new_ami_id = recreate_image(ami=ami_id,
-                                function_ec2_cli=MAIN_EC2_CLI,
-                                securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
-                                                           funct_vpc_id=share_vpc_id),
-                                funct_subnet_id=share_subnet_id,
-                                funct_account_id='main_account')
+    try:
+        print("Sharing AMI: %s..." % ami_id)
+        MAIN_EC2_CLI.modify_image_attribute(
+            ImageId=ami_id,
+            OperationType='add',
+            UserIds=account_ids,
+            LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
 
-    print("Image recreated with new id: %s" % new_ami_id)
-    print("Sharing AMI: %s..." % new_ami_id)
+        return ami_id
 
-    MAIN_EC2_CLI.modify_image_attribute(
-        ImageId=new_ami_id,
-        OperationType='add',
-        UserIds=account_ids,
-        LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
+    except botocore.exceptions.ClientError as share_error:
+        print("Failed to share AMI: %s, recreating AMI...")
+        print(share_error)
+        new_ami_id = recreate_image(ami=ami_id,
+                                    function_ec2_cli=MAIN_EC2_CLI,
+                                    securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
+                                                               funct_vpc_id=share_vpc_id),
+                                    funct_subnet_id=share_subnet_id,
+                                    funct_account_id='main_account')
 
-    return new_ami_id
+        print("Image recreated with new id: %s" % new_ami_id)
+        print("Sharing AMI: %s..." % new_ami_id)
+
+        MAIN_EC2_CLI.modify_image_attribute(
+            ImageId=new_ami_id,
+            OperationType='add',
+            UserIds=account_ids,
+            LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
+
+        return new_ami_id
 
 
 def revoke_ami_access():
