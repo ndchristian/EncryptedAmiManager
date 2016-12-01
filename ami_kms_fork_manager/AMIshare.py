@@ -303,7 +303,7 @@ def revoke_ami_access():
     print("Revoking access to AMI...")
     try:
         MAIN_EC2_CLI.modify_image_attribute(
-            ImageId=ami_id,
+            ImageId=share_ami_id,
             OperationType='remove',
             UserIds=account_ids,
             LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
