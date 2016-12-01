@@ -273,17 +273,15 @@ def share_ami():
             UserIds=account_ids,
             LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
 
-        return ami_id
-
     except botocore.exceptions.ClientError as share_error:
         print("Failed to share AMI: %s, recreating AMI...")
         print(share_error)
-        new_ami_id = recreate_image(ami=ami_id,
-                                    function_ec2_cli=MAIN_EC2_CLI,
-                                    securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
-                                                               funct_vpc_id=share_vpc_id),
-                                    funct_subnet_id=share_subnet_id,
-                                    funct_account_id='main_account')
+        ami_id = recreate_image(ami=ami_id,
+                                function_ec2_cli=MAIN_EC2_CLI,
+                                securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
+                                                           funct_vpc_id=share_vpc_id),
+                                funct_subnet_id=share_subnet_id,
+                                funct_account_id='main_account')
 
         print("Image recreated with new id: %s" % new_ami_id)
         print("Sharing AMI: %s..." % new_ami_id)
@@ -294,7 +292,7 @@ def share_ami():
             UserIds=account_ids,
             LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
 
-        return new_ami_id
+    return ami_id
 
 
 def json_data_upload(json_data_list):
