@@ -297,13 +297,13 @@ def share_ami():
         return new_ami_id
 
 
-def revoke_ami_access(amiId):
+def revoke_ami_access():
     """Revokes access to the specified AMI."""
 
     print("Revoking access to AMI...")
     try:
         MAIN_EC2_CLI.modify_image_attribute(
-            ImageId=amiId,
+            ImageId=ami_id,
             OperationType='remove',
             UserIds=account_ids,
             LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
@@ -380,7 +380,7 @@ def create_html_doc(ami_details_list):
 def rollback(amis, put_items, html_keys, json_keys, error):
     """Rollbacks all AWS actions done in case something goes wrong."""
     print("Rolling back...")
-    revoke_ami_access(amiId=ami_id)
+    revoke_ami_access()
 
     try:
         if put_items:
