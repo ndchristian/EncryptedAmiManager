@@ -425,8 +425,7 @@ if __name__ == '__main__':
     print("Running ami_kms_fork_manager...")
 
     share_ami_id = share_ami()
-    ami_id = main_ami_id
-    print(ami_id)
+    print("foobar")
 
     role_name = config_data['General'][0]['RoleName']
     account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
