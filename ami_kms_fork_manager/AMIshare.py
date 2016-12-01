@@ -291,7 +291,7 @@ def share_ami():
             OperationType='add',
             UserIds=account_ids,
             LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
-
+    print("ami_id:",ami_id)
     return ami_id
 
 
