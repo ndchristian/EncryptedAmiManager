@@ -39,6 +39,10 @@ MAIN_DYNA_CLI = boto3.client('dynamodb', region_name=REGION)
 MAIN_DYNA_RESC = boto3.resource('dynamodb', region_name=REGION)
 MAIN_S3_CLI = boto3.client('s3', region_name=REGION)
 
+ROLE_NAME = config_data['General'][0]['RoleName']
+ACCOUNT_IDS = [account['AccountNumber'] for account in config_data['Accounts']]
+JOB_NUMBER = 'jobnum-%s' % int(time.time())
+
 STUCK_INSTANCES = []
 FAILED_ACCOUNTS = []
 
@@ -262,13 +266,14 @@ def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
     ami_id = config_data['General'][0]['AMI_ID']
+    print("sharefoobar")
     try:
         print("Sharing AMI: %s..." % ami_id)
         MAIN_EC2_CLI.modify_image_attribute(
             ImageId=ami_id,
             OperationType='add',
-            UserIds=account_ids,
-            LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
+            UserIds=ACCOUNT_IDS,
+            LaunchPermission={'Add': [{'UserId': account_number} for account_number in ACCOUNT_IDS]})
 
     except botocore.exceptions.ClientError as share_error:
         print("Failed to share AMI: %s, recreating AMI...")
@@ -289,8 +294,8 @@ def share_ami():
         MAIN_EC2_CLI.modify_image_attribute(
             ImageId=new_ami_id,
             OperationType='add',
-            UserIds=account_ids,
-            LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
+            UserIds=ACCOUNT_IDS,
+            LaunchPermission={'Add': [{'UserId': account_number} for account_number in ACCOUNT_IDS]})
     print("ami_id:",ami_id)
     return ami_id
 
@@ -369,8 +374,8 @@ def rollback(amis, put_items, html_keys, json_keys, error):
         MAIN_EC2_CLI.modify_image_attribute(
             ImageId=share_ami_id,
             OperationType='remove',
-            UserIds=account_ids,
-            LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
+            UserIds=ACCOUNT_IDS,
+            LaunchPermission={'Remove': [{'UserId': account_number} for account_number in ACCOUNT_IDS]})
     except botocore.exceptions.ClientError as ModifyImageError:
         raise ModifyImageError
 
@@ -396,7 +401,7 @@ def rollback(amis, put_items, html_keys, json_keys, error):
         # STS allows you to connect to other accounts using assumed roles.
 
         rollback_assume_role = MAIN_STS_CLI.assume_role(
-            RoleArn="arn:aws:iam::%s:role/%s" % (rollback_account['AccountNumber'], role_name),
+            RoleArn="arn:aws:iam::%s:role/%s" % (rollback_account['AccountNumber'], ROLE_NAME),
             RoleSessionName="AssumedRoleSession%s" % int(time.time()))
 
         rollback_role_credentials = rollback_assume_role['Credentials']
@@ -425,11 +430,6 @@ if __name__ == '__main__':
     print("Running ami_kms_fork_manager...")
 
     share_ami_id = share_ami()
-    print("foobar")
-
-    role_name = config_data['General'][0]['RoleName']
-    account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
-    job_number = 'jobnum-%s' % int(time.time())
 
     for bucket in [config_data['General'][0]['JSON_S3bucket'], config_data['General'][0]['HTML_S3bucket']]:
         try:
@@ -439,10 +439,10 @@ if __name__ == '__main__':
 
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[ami_id])
 
-    for account_id in account_ids:
+    for account_id in ACCOUNT_IDS:
         # STS allows you to connect to other accounts using assumed roles.
         assumed_role = MAIN_STS_CLI.assume_role(
-            RoleArn="arn:aws:iam::%s:role/%s" % (account_id, role_name),
+            RoleArn="arn:aws:iam::%s:role/%s" % (account_id, ROLE_NAME),
             RoleSessionName="AssumedRoleSession%s" % int(time.time()))
 
         role_credentials = assumed_role['Credentials']
@@ -517,7 +517,7 @@ if __name__ == '__main__':
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
                             'comments:': config_data['General'][0]['Comments'],
-                            'jobnum': job_number,
+                            'jobnum': JOB_NUMBER,
                             'epochtime': int(time.time()),
                             'logicaldelete': 0}
 
