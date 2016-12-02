@@ -181,8 +181,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                                                         securitygroup_id,
                                                         temp_instance['Instances'][0]['SubnetId'],
                                                         temp_sg_details['SecurityGroups'][0]['VpcId']],
-                                             Tags=[{'Key': tag['TagKey'],
-                                                    'Value': tag['TagValue']}])
+                                             Tags=[{'Key': tag['TagKey'], 'Value': tag['TagValue']}])
 
             print("\tInstance is now running, stopping instance...")
             function_ec2_cli.stop_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
@@ -427,6 +426,9 @@ if __name__ == '__main__':
 
     certain_ami_id = share_ami()
 
+    MAIN_EC2_CLI.create_tags(Resources=[certain_ami_id], Tags=[{'Key': 'configami', 'Value': ami_id},
+                                                               {'Key': 'jobnumber', 'Value': job_number}])
+
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
 
     for account_id in account_ids:
@@ -482,6 +484,11 @@ if __name__ == '__main__':
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
                         print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
+
+                        ec2_cli.create_tags(Resources=[encrypted_ami['ImageId']], Tags=[{'Key': 'configami',
+                                                                                         'Value': ami_id},
+                                                                                        {'Key': 'jobnumber',
+                                                                                         'Value': job_number}])
 
                         print("Deregistering unencrypted AMI...")
                         ec2_cli.deregister_image(ImageId=account_ami)
