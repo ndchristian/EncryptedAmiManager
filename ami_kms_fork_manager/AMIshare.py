@@ -373,13 +373,20 @@ def rollback(amis, put_items, html_keys, json_keys, error):
     except botocore.exceptions.ClientError as BotoError:
         print(BotoError)
         pass
+    except botocore.exceptions.ParamValidationError as ParamError:
+        print(ParamError)
+        print("Unable to rollback DynamoDB entries")
 
-    for html_key in html_keys:
-        MAIN_S3_CLI.delete_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
-                                  Key=html_key)
-    for json_key in json_keys:
-        MAIN_S3_CLI.delete_object(Bucket=config_data['General'][0]['JSON_S3bucket'],
-                                  Key=json_key)
+    try:
+        for html_key in html_keys:
+            MAIN_S3_CLI.delete_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
+                                      Key=html_key)
+        for json_key in json_keys:
+            MAIN_S3_CLI.delete_object(Bucket=config_data['General'][0]['JSON_S3bucket'],
+                                      Key=json_key)
+    except botocore.exceptions.ClientError as s3error:
+        print("Something went wrong when trying to delete HTML and JSON files")
+        print(s3error)
 
     for rollback_account in amis:
         # STS allows you to connect to other accounts using assumed roles.
