@@ -481,8 +481,6 @@ if __name__ == '__main__':
                             Encrypted=True,
                             KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
 
-                        ec2_cli.get_waiter('image_exists').wait(ImageIds=[encrypted_ami['ImageId']])
-                        ec2_cli.get_waiter('image_available').wait(ImageIds=[encrypted_ami['ImageId']])
                         print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
 
                         print("Deregistering unencrypted AMI...")
