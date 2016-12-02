@@ -495,6 +495,7 @@ if __name__ == '__main__':
 
                         put_item = {
                             'sourceami': certain_ami_id,
+                            'configami': ami_id,
                             'targetami': account_ami,
                             'encryptedtargetami': encrypted_ami['ImageId'],
                             'targetregion': region_data,
@@ -523,7 +524,8 @@ if __name__ == '__main__':
                         j_data = {
                             'awsaccountnumber': account_num,
                             'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
-                            'sourceami': ami_id,
+                            'sourceami': certain_ami_id,
+                            'configami': ami_id,
                             'targetami': account_ami,
                             'encryptedami': encrypted_ami['ImageId'],
                             'os': config_data['General'][0]['OS'],
