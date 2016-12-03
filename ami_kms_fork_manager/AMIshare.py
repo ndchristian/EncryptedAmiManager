@@ -544,7 +544,8 @@ if __name__ == '__main__':
                         JSON_INFO_LIST.append(j_data)
 
                     except botocore.exceptions.ClientError as e:
-                        print(e.response['Error']['Code'])
+                        print(e)
+                        print("Moving on...")
                         if e.response['Error']['Code'] == 'OptInRequired':
                             FAILED_ACCOUNTS.append(account_num)
                             pass
