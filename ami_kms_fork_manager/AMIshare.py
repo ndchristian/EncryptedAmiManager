@@ -552,7 +552,12 @@ if __name__ == '__main__':
                         JSON_INFO_LIST.append(j_data)
 
                     except botocore.exceptions.ClientError as e:
-                        rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[], error=e)
+                        print(e.response['Error']['Code'])
+                        if 'OptInRequired' in e.response['Error']['Code']:
+                            FAILED_ACCOUNTS.append(account_num)
+                            pass
+                        else:
+                            rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[], error=e)
 
 # Creates HTML and JSON documents
 JSON_DOC_LIST.append(json_data_upload(json_data_list=JSON_INFO_LIST))
