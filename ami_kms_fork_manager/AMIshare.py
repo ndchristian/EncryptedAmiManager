@@ -52,22 +52,13 @@ HTML_DOC_LIST = []
 def create_vpc(function_ec2_cli):
     """Creates a temporary VPC"""
 
-    try:
-        print("\tCreating temporary VPC...")
-        temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
-        function_ec2_cli.get_waiter('vpc_exists').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
-        function_ec2_cli.get_waiter('vpc_available').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
-        print("\tCreated VPC: %s" % temp_vpc['Vpc']['VpcId'])
+    print("\tCreating temporary VPC...")
+    temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
+    function_ec2_cli.get_waiter('vpc_exists').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
+    function_ec2_cli.get_waiter('vpc_available').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
+    print("\tCreated VPC: %s" % temp_vpc['Vpc']['VpcId'])
 
-        return temp_vpc['Vpc']['VpcId']
-
-    except botocore.exceptions.ClientError as VpcError:
-        print(VpcError.response['Error']['Code'])
-        if 'OptInRequired' in VpcError.response['Error']['Code']:
-            FAILED_ACCOUNTS.append(account_num)
-            pass
-        else:
-            rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[], error=VpcError)
+    return temp_vpc['Vpc']['VpcId']
 
 
 def create_subnet(function_ec2_cli, funct_vpc_id):
