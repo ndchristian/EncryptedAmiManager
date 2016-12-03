@@ -62,11 +62,12 @@ def create_vpc(function_ec2_cli):
         return temp_vpc['Vpc']['VpcId']
 
     except botocore.exceptions.ClientError as VpcError:
-        rollback(amis=AMI_LIST,
-                 put_items=PUT_ITEM_LIST,
-                 html_keys=HTML_DOC_LIST,
-                 json_keys=JSON_DOC_LIST,
-                 error=VpcError)
+        print(e.response['Error']['Code'])
+        if 'OptInRequired' in VpcError.response['Error']['Code']:
+            FAILED_ACCOUNTS.append(account_num)
+            pass
+        else:
+            rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[], error=VpcError)
 
 
 def create_subnet(function_ec2_cli, funct_vpc_id):
