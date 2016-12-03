@@ -545,7 +545,7 @@ if __name__ == '__main__':
 
                     except botocore.exceptions.ClientError as e:
                         print(e.response['Error']['Code'])
-                        if 'OptInRequired' in e.response['Error']['Code']:
+                        if e.response['Error']['Code'] == 'OptInRequired':
                             FAILED_ACCOUNTS.append(account_num)
                             pass
                         else:
