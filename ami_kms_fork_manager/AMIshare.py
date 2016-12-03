@@ -62,7 +62,7 @@ def create_vpc(function_ec2_cli):
         return temp_vpc['Vpc']['VpcId']
 
     except botocore.exceptions.ClientError as VpcError:
-        print(e.response['Error']['Code'])
+        print(VpcError.response['Error']['Code'])
         if 'OptInRequired' in VpcError.response['Error']['Code']:
             FAILED_ACCOUNTS.append(account_num)
             pass
