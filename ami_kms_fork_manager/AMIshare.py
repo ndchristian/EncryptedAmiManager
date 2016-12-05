@@ -48,15 +48,21 @@ JSON_DOC_LIST = []
 PUT_ITEM_LIST = []
 HTML_DOC_LIST = []
 
+AMI_ID = config_data['General'][0]['AMI_ID']
+JOB_NUMBER = 'jobnum-%s' % int(time.time())
 
-def create_vpc(function_ec2_cli):
+
+def vpc_create(function_ec2_cli, account_number):
     """Creates a temporary VPC"""
 
-    print("\tCreating temporary VPC...")
-    temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
-    function_ec2_cli.get_waiter('vpc_exists').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
-    function_ec2_cli.get_waiter('vpc_available').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
-    print("\tCreated VPC: %s" % temp_vpc['Vpc']['VpcId'])
+    try:
+        print("\tCreating temporary VPC...")
+        temp_vpc = function_ec2_cli.create_vpc(CidrBlock='10.0.0.0/16')
+        function_ec2_cli.get_waiter('vpc_exists').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
+        function_ec2_cli.get_waiter('vpc_available').wait(VpcIds=[temp_vpc['Vpc']['VpcId']])
+        print("\tCreated VPC: %s" % temp_vpc['Vpc']['VpcId'])
+    except botocore.exceptions.ClientError:
+        raise
 
     return temp_vpc['Vpc']['VpcId']
 
@@ -79,11 +85,7 @@ def create_subnet(function_ec2_cli, funct_vpc_id):
                 # Gives creating the subnet a little more time flexibility
                 if counter == 5:
                     function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
-                    rollback(amis=AMI_LIST,
-                             put_items=PUT_ITEM_LIST,
-                             html_keys=HTML_DOC_LIST,
-                             json_keys=JSON_DOC_LIST,
-                             error=subnetError)
+                    raise
                 else:
                     counter += 1
 
@@ -91,13 +93,9 @@ def create_subnet(function_ec2_cli, funct_vpc_id):
 
         return temp_subnet['Subnet']['SubnetId']
 
-    except botocore.exceptions.ClientError as SubnetError:
+    except botocore.exceptions.ClientError:
         function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
-        rollback(amis=AMI_LIST,
-                 put_items=PUT_ITEM_LIST,
-                 html_keys=HTML_DOC_LIST,
-                 json_keys=JSON_DOC_LIST,
-                 error=SubnetError)
+        raise
 
 
 def create_sg(function_ec2_cli, funct_vpc_id):
@@ -116,15 +114,11 @@ def create_sg(function_ec2_cli, funct_vpc_id):
                 print("\tCreated temporary security group: %s" % temp_sg['GroupId'])
                 return temp_sg['GroupId']
 
-            except botocore.exceptions.ClientError as WaiterError:
+            except botocore.exceptions.ClientError:
                 # Gives the creation of the security group a little more of a chance
                 if counter == 10:
                     function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
-                    rollback(amis=AMI_LIST,
-                             put_items=PUT_ITEM_LIST,
-                             html_keys=HTML_DOC_LIST,
-                             json_keys=JSON_DOC_LIST,
-                             error=WaiterError)
+                    raise
                 else:
                     time.sleep(1)
                     counter += 1
@@ -136,11 +130,7 @@ def create_sg(function_ec2_cli, funct_vpc_id):
     # In case something goes wrong when creating a security group
     except botocore.exceptions.ClientError as SGerror:
         function_ec2_cli.delete_vpc(VpcId=funct_vpc_id)
-        rollback(amis=AMI_LIST,
-                 put_items=PUT_ITEM_LIST,
-                 html_keys=HTML_DOC_LIST,
-                 json_keys=JSON_DOC_LIST,
-                 error=SGerror)
+        raise
 
 
 def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, funct_account_id):
@@ -205,9 +195,13 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                 function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
                 function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
                 function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
-            except botocore.exceptions.ClientError as DeletionError:
+            except botocore.exceptions.ClientError:
                 print("\tSomething went wrong when deleteing temporary objects...")
-                raise DeletionError
+                STUCK_INSTANCES.append({'AccountID': funct_account_id,
+                                        'SecurityGroup': securitygroup_id,
+                                        'Subnet': temp_instance['Instances'][0]['SubnetId'],
+                                        'VPC': temp_sg_details['SecurityGroups'][0]['VpcId'],
+                                        'Message': "Please check if all resources are deleted"})
 
             return new_image['ImageId']
 
@@ -220,11 +214,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                     function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
                     function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
                     function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
-                    rollback(amis=AMI_LIST,
-                             put_items=PUT_ITEM_LIST,
-                             html_keys=HTML_DOC_LIST,
-                             json_keys=JSON_DOC_LIST,
-                             error=CreateInstanceErr)
+                    raise
                 else:
                     print("Something when wrong. Trying again...")
                     continue
@@ -252,7 +242,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
-    share_vpc_id = create_vpc(function_ec2_cli=MAIN_EC2_CLI)
+    share_vpc_id = vpc_create(function_ec2_cli=MAIN_EC2_CLI, account_number=MAIN_STS_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
     new_ami_id = recreate_image(ami=ami_id,
@@ -272,20 +262,6 @@ def share_ami():
         LaunchPermission={'Add': [{'UserId': account_number} for account_number in account_ids]})
 
     return new_ami_id
-
-
-def revoke_ami_access():
-    """Revokes access to the specified AMI."""
-
-    print("Revoking access to AMI...")
-    try:
-        MAIN_EC2_CLI.modify_image_attribute(
-            ImageId=ami_id,
-            OperationType='remove',
-            UserIds=account_ids,
-            LaunchPermission={'Remove': [{'UserId': account_number} for account_number in account_ids]})
-    except botocore.exceptions.ClientError as ModifyImageError:
-        raise ModifyImageError
 
 
 def json_data_upload(json_data_list):
@@ -352,84 +328,7 @@ def create_html_doc(ami_details_list):
     return bucket_key
 
 
-def rollback(amis, put_items, html_keys, json_keys, error):
-    """Rollbacks all AWS actions done in case something goes wrong."""
-    print("Rolling back...")
-    revoke_ami_access()
-
-    try:
-        if put_items:
-            for rollback_item in put_items:
-                MAIN_DYNA_CLI.delete_item(TableName=config_data['General'][0]['DynamoDBTable'],
-                                          Key=rollback_item)
-    except botocore.exceptions.ClientError as BotoError:
-        print(BotoError)
-        pass
-    except botocore.exceptions.ParamValidationError as ParamError:
-        print(ParamError)
-        print("Unable to rollback DynamoDB entries")
-
-    try:
-        for html_key in html_keys:
-            MAIN_S3_CLI.delete_object(Bucket=config_data['General'][0]['HTML_S3bucket'],
-                                      Key=html_key)
-        for json_key in json_keys:
-            MAIN_S3_CLI.delete_object(Bucket=config_data['General'][0]['JSON_S3bucket'],
-                                      Key=json_key)
-    except botocore.exceptions.ClientError as s3error:
-        print("Something went wrong when trying to delete HTML and JSON files")
-        print(s3error)
-
-    for rollback_account in amis:
-        # STS allows you to connect to other accounts using assumed roles.
-
-        rollback_assume_role = MAIN_STS_CLI.assume_role(
-            RoleArn="arn:aws:iam::%s:role/%s" % (rollback_account['AccountNumber'], role_name),
-            RoleSessionName="AssumedRoleSession%s" % int(time.time()))
-
-        rollback_role_credentials = rollback_assume_role['Credentials']
-
-        rollback_session = boto3.Session(
-            aws_access_key_id=rollback_role_credentials['AccessKeyId'],
-            aws_secret_access_key=rollback_role_credentials['SecretAccessKey'],
-            aws_session_token=rollback_role_credentials['SessionToken'])
-
-        rollback_ec2_cli = rollback_session.client('ec2', region_name=rollback_account['Region'])
-
-        for image_to_delete in amis:
-            if image_to_delete['AccountNumber'] == rollback_account['AccountNumber']:
-                try:
-                    rollback_ec2_cli.deregister_image(ImageId=image_to_delete['Encrypted_AMI_ID'])
-                except botocore.exceptions.ClientError as deRegisterError:
-                    print(deRegisterError)
-                    pass
-
-    print("Finished rolling back.")
-    sys.exit(error)
-
-
-if __name__ == '__main__':
-
-    print("Running ami_kms_fork_manager...")
-
-    ami_id = config_data['General'][0]['AMI_ID']
-    role_name = config_data['General'][0]['RoleName']
-    account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
-    job_number = 'jobnum-%s' % int(time.time())
-
-    for bucket in [config_data['General'][0]['JSON_S3bucket'], config_data['General'][0]['HTML_S3bucket']]:
-        try:
-            MAIN_S3_CLI.head_bucket(Bucket=bucket)
-        except botocore.exceptions.ClientError as NoBucket:
-            raise NoBucket
-
-    certain_ami_id = share_ami()
-
-    MAIN_EC2_CLI.create_tags(Resources=[certain_ami_id], Tags=[{'Key': 'configami', 'Value': ami_id},
-                                                               {'Key': 'jobnumber', 'Value': job_number}])
-
-    image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
-
+def process(account_numbers, role_name, image_details, recreate_ami_id):
     for account_id in account_ids:
         # STS allows you to connect to other accounts using assumed roles.
         assumed_role = MAIN_STS_CLI.assume_role(
@@ -459,7 +358,7 @@ if __name__ == '__main__':
                         image_description = 'None'
 
                     try:
-                        vpc_id = create_vpc(function_ec2_cli=ec2_cli)
+                        vpc_id = vpc_create(function_ec2_cli=ec2_cli)
 
                         ec2_cli.create_tags(Resources=[vpc_id], Tags=[{'Key': 'Name',
                                                                        'Value': 'Temp VPC for AMI push'}])
@@ -485,9 +384,9 @@ if __name__ == '__main__':
                         print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
 
                         ec2_cli.create_tags(Resources=[encrypted_ami['ImageId']], Tags=[{'Key': 'configami',
-                                                                                         'Value': ami_id},
+                                                                                         'Value': AMI_ID},
                                                                                         {'Key': 'jobnumber',
-                                                                                         'Value': job_number}])
+                                                                                         'Value': JOB_NUMBER}])
 
                         print("Deregistering unencrypted AMI...")
                         ec2_cli.deregister_image(ImageId=account_ami)
@@ -501,7 +400,7 @@ if __name__ == '__main__':
 
                         put_item = {
                             'sourceami': certain_ami_id,
-                            'configami': ami_id,
+                            'configami': AMI_ID,
                             'targetami': account_ami,
                             'encryptedtargetami': encrypted_ami['ImageId'],
                             'targetregion': region_data,
@@ -513,7 +412,7 @@ if __name__ == '__main__':
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
                             'comments:': config_data['General'][0]['Comments'],
-                            'jobnum': job_number,
+                            'jobnum': JOB_NUMBER,
                             'epochtime': int(time.time()),
                             'logicaldelete': 0}
 
@@ -522,8 +421,9 @@ if __name__ == '__main__':
                             table = MAIN_DYNA_RESC.Table(config_data['General'][0]['DynamoDBTable'])
                             table.put_item(Item=put_item)
                         except Exception as DynaError:
-                            rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[],
-                                     error=DynaError)
+                            print(DynaError)
+                            print("Deregistering %s" % encrypted_ami['ImageId'])
+                            ec2_cli.deregister_image(ImageId=encrypted_ami['ImageId'])
 
                         print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
 
@@ -531,7 +431,7 @@ if __name__ == '__main__':
                             'awsaccountnumber': account_num,
                             'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
                             'sourceami': certain_ami_id,
-                            'configami': ami_id,
+                            'configami': AMI_ID,
                             'targetami': account_ami,
                             'encryptedami': encrypted_ami['ImageId'],
                             'os': config_data['General'][0]['OS'],
@@ -546,11 +446,34 @@ if __name__ == '__main__':
                     except botocore.exceptions.ClientError as e:
                         print(e)
                         print("Moving on...")
-                        if e.response['Error']['Code'] == 'OptInRequired':
-                            FAILED_ACCOUNTS.append(account_num)
-                            pass
-                        else:
-                            rollback(amis=AMI_LIST, put_items=PUT_ITEM_LIST, html_keys=[], json_keys=[], error=e)
+                        FAILED_ACCOUNTS.append(account_num)
+                        pass
+
+
+if __name__ == '__main__':
+
+    print("Running ami_kms_fork_manager...")
+
+    role_name = config_data['General'][0]['RoleName']
+    account_ids = [account['AccountNumber'] for account in config_data['Accounts']]
+
+    for bucket in [config_data['General'][0]['JSON_S3bucket'], config_data['General'][0]['HTML_S3bucket']]:
+        try:
+            MAIN_S3_CLI.head_bucket(Bucket=bucket)
+        except botocore.exceptions.ClientError as NoBucket:
+            raise NoBucket
+
+    certain_ami_id = share_ami()
+
+    MAIN_EC2_CLI.create_tags(Resources=[certain_ami_id], Tags=[{'Key': 'configami', 'Value': AMI_ID},
+                                                               {'Key': 'jobnumber', 'Value': JOB_NUMBER}])
+
+    image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
+
+    process(account_numbers=account_ids,
+            role_name=role_name,
+            image_details=image_details,
+            recreate_ami_id=certain_ami_id)
 
 # Creates HTML and JSON documents
 JSON_DOC_LIST.append(json_data_upload(json_data_list=JSON_INFO_LIST))
@@ -558,7 +481,18 @@ HTML_DOC_LIST.append(create_html_doc(ami_details_list=AMI_LIST))
 
 if FAILED_ACCOUNTS:
     print("Failed Accounts: %s" % FAILED_ACCOUNTS)
+    stored_failed_accounts = FAILED_ACCOUNTS
+    del lst1[:]
+    print("Retrying these accounts..")
+    process(account_numbers=stored_failed_accounts,
+            role_name=role_name,
+            image_details=image_details,
+            recreate_ami_id=certain_ami_id)
+    if FAILED_ACCOUNTS:
+        print("These accounts failed after retrying: %s" % FAILED_ACCOUNTS)
+
 if STUCK_INSTANCES:
-    print("Stuck instances: %s" % STUCK_INSTANCES)
+    for stuck in STUCK_INSTANCES:
+        print("Resources that need to be cleaned up: %s" % stuck)
 
 print("Done!")
