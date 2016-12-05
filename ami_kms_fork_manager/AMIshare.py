@@ -329,7 +329,7 @@ def create_html_doc(ami_details_list):
 
 
 def process(account_numbers, role_name, image_details, recreate_ami_id):
-    for account_id in account_ids:
+    for account_id in account_numbers:
         # STS allows you to connect to other accounts using assumed roles.
         assumed_role = MAIN_STS_CLI.assume_role(
             RoleArn="arn:aws:iam::%s:role/%s" % (account_id, role_name),
@@ -365,7 +365,7 @@ def process(account_numbers, role_name, image_details, recreate_ami_id):
 
                         subnet_id = create_subnet(function_ec2_cli=ec2_cli, funct_vpc_id=vpc_id)
 
-                        account_ami = recreate_image(ami=certain_ami_id,
+                        account_ami = recreate_image(ami=recreate_ami_id,
                                                      function_ec2_cli=ec2_cli,
                                                      securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
                                                                                 funct_vpc_id=vpc_id),
@@ -399,7 +399,7 @@ def process(account_numbers, role_name, image_details, recreate_ami_id):
                         # Gathers DB and json values
 
                         put_item = {
-                            'sourceami': certain_ami_id,
+                            'sourceami': recreate_ami_id,
                             'configami': AMI_ID,
                             'targetami': account_ami,
                             'encryptedtargetami': encrypted_ami['ImageId'],
@@ -430,7 +430,7 @@ def process(account_numbers, role_name, image_details, recreate_ami_id):
                         j_data = {
                             'awsaccountnumber': account_num,
                             'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
-                            'sourceami': certain_ami_id,
+                            'sourceami': recreate_ami_id,
                             'configami': AMI_ID,
                             'targetami': account_ami,
                             'encryptedami': encrypted_ami['ImageId'],
