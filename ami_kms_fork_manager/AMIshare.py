@@ -17,7 +17,6 @@ from __future__ import print_function
 import json
 import sys
 import time
-import thread
 
 import boto3
 import botocore
@@ -329,127 +328,128 @@ def create_html_doc(ami_details_list):
     return bucket_key
 
 
-def process(account_number, role_name, image_details, recreate_ami_id):
-    # STS allows you to connect to other accounts using assumed roles.
-    assumed_role = MAIN_STS_CLI.assume_role(
-        RoleArn="arn:aws:iam::%s:role/%s" % (account_number, role_name),
-        RoleSessionName="AssumedRoleSession%s" % int(time.time()))
+def process(account_numbers, role_name, image_details, recreate_ami_id):
+    for account_id in account_numbers:
+        # STS allows you to connect to other accounts using assumed roles.
+        assumed_role = MAIN_STS_CLI.assume_role(
+            RoleArn="arn:aws:iam::%s:role/%s" % (account_id, role_name),
+            RoleSessionName="AssumedRoleSession%s" % int(time.time()))
 
-    role_credentials = assumed_role['Credentials']
+        role_credentials = assumed_role['Credentials']
 
-    session = boto3.Session(
-        aws_access_key_id=role_credentials['AccessKeyId'],
-        aws_secret_access_key=role_credentials['SecretAccessKey'],
-        aws_session_token=role_credentials['SessionToken'])
+        session = boto3.Session(
+            aws_access_key_id=role_credentials['AccessKeyId'],
+            aws_secret_access_key=role_credentials['SecretAccessKey'],
+            aws_session_token=role_credentials['SessionToken'])
 
-    sts_cli = session.client('sts')
-    account_num = sts_cli.get_caller_identity().get('Account')
+        sts_cli = session.client('sts')
+        account_num = sts_cli.get_caller_identity().get('Account')
 
-    # Connects to each region and copies the AMI there.
-    for acc_data in config_data['Accounts']:
-        if account_num == acc_data['AccountNumber']:
-            for region_data in acc_data['Regions']:
+        # Connects to each region and copies the AMI there.
+        for acc_data in config_data['Accounts']:
+            if account_num == acc_data['AccountNumber']:
+                for region_data in acc_data['Regions']:
 
-                ec2_cli = session.client('ec2', region_name=region_data)
+                    ec2_cli = session.client('ec2', region_name=region_data)
 
-                try:
-                    image_description = image_details['Images'][0]['Description']
-                except KeyError:
-                    image_description = 'None'
-
-                try:
-                    vpc_id = vpc_create(function_ec2_cli=ec2_cli)
-
-                    ec2_cli.create_tags(Resources=[vpc_id], Tags=[{'Key': 'Name',
-                                                                   'Value': 'Temp VPC for AMI push'}])
-
-                    subnet_id = create_subnet(function_ec2_cli=ec2_cli, funct_vpc_id=vpc_id)
-
-                    account_ami = recreate_image(ami=recreate_ami_id,
-                                                 function_ec2_cli=ec2_cli,
-                                                 securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
-                                                                            funct_vpc_id=vpc_id),
-                                                 funct_subnet_id=subnet_id,
-                                                 funct_account_id=account_id)
-
-                    print("Making an encrypted copy of the AMI..")
-                    encrypted_ami = ec2_cli.copy_image(
-                        SourceRegion=REGION,
-                        SourceImageId=account_ami,
-                        Name="encrypted-%s" % image_details['Images'][0]['Name'],
-                        Description=image_description,
-                        Encrypted=True,
-                        KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
-
-                    print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
-
-                    ec2_cli.create_tags(Resources=[encrypted_ami['ImageId']], Tags=[{'Key': 'configami',
-                                                                                     'Value': AMI_ID},
-                                                                                    {'Key': 'jobnumber',
-                                                                                     'Value': JOB_NUMBER}])
-
-                    print("Deregistering unencrypted AMI...")
-                    ec2_cli.deregister_image(ImageId=account_ami)
-
-                    AMI_LIST.append({'AccountNumber': account_num,
-                                     'Region': region_data,
-                                     'Encrypted_AMI_ID': encrypted_ami['ImageId'],
-                                     'AMI_ID': account_ami})
-
-                    # Gathers DB and json values
-
-                    put_item = {
-                        'sourceami': recreate_ami_id,
-                        'configami': AMI_ID,
-                        'targetami': account_ami,
-                        'encryptedtargetami': encrypted_ami['ImageId'],
-                        'targetregion': region_data,
-                        'targetawsaccountnum': account_num,
-                        'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
-                        'releasedate': config_data['General'][0]['ReleaseDate'],
-                        'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
-                        'stasisdate': config_data['General'][0]['StasisDate'],
-                        'os': config_data['General'][0]['OS'],
-                        'osver': config_data['General'][0]['OsVersion'],
-                        'comments:': config_data['General'][0]['Comments'],
-                        'jobnum': JOB_NUMBER,
-                        'epochtime': int(time.time()),
-                        'logicaldelete': 0}
-
-                    PUT_ITEM_LIST.append(put_item)
                     try:
-                        table = MAIN_DYNA_RESC.Table(config_data['General'][0]['DynamoDBTable'])
-                        table.put_item(Item=put_item)
-                    except Exception as DynaError:
-                        print(DynaError)
-                        print("Deregistering %s" % encrypted_ami['ImageId'])
-                        ec2_cli.deregister_image(ImageId=encrypted_ami['ImageId'])
+                        image_description = image_details['Images'][0]['Description']
+                    except KeyError:
+                        image_description = 'None'
 
-                    print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
+                    try:
+                        vpc_id = vpc_create(function_ec2_cli=ec2_cli)
 
-                    j_data = {
-                        'awsaccountnumber': account_num,
-                        'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
-                        'sourceami': recreate_ami_id,
-                        'sourceamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, recreate_ami_id),
-                        'configami': AMI_ID,
-                        'configamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, AMI_ID),
-                        'targetami': account_ami,
-                        'targetamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, account_ami),
-                        'encryptedami': encrypted_ami['ImageId'],
-                        'os': config_data['General'][0]['OS'],
-                        'osver': config_data['General'][0]['OsVersion'],
-                        'awsaccount': account_num
+                        ec2_cli.create_tags(Resources=[vpc_id], Tags=[{'Key': 'Name',
+                                                                       'Value': 'Temp VPC for AMI push'}])
 
-                    }
+                        subnet_id = create_subnet(function_ec2_cli=ec2_cli, funct_vpc_id=vpc_id)
 
-                    JSON_INFO_LIST.append(j_data)
+                        account_ami = recreate_image(ami=recreate_ami_id,
+                                                     function_ec2_cli=ec2_cli,
+                                                     securitygroup_id=create_sg(function_ec2_cli=ec2_cli,
+                                                                                funct_vpc_id=vpc_id),
+                                                     funct_subnet_id=subnet_id,
+                                                     funct_account_id=account_id)
 
-                except botocore.exceptions.ClientError as e:
-                    print(e)
-                    print("Moving on...")
-                    FAILED_ACCOUNTS.append(account_num)
-                    pass
+                        print("Making an encrypted copy of the AMI..")
+                        encrypted_ami = ec2_cli.copy_image(
+                            SourceRegion=REGION,
+                            SourceImageId=account_ami,
+                            Name="encrypted-%s" % image_details['Images'][0]['Name'],
+                            Description=image_description,
+                            Encrypted=True,
+                            KmsKeyId=config_data['RegionEncryptionKeys'][0][REGION])
+
+                        print("Created encrypted AMI: %s for %s." % (encrypted_ami['ImageId'], account_id))
+
+                        ec2_cli.create_tags(Resources=[encrypted_ami['ImageId']], Tags=[{'Key': 'configami',
+                                                                                         'Value': AMI_ID},
+                                                                                        {'Key': 'jobnumber',
+                                                                                         'Value': JOB_NUMBER}])
+
+                        print("Deregistering unencrypted AMI...")
+                        ec2_cli.deregister_image(ImageId=account_ami)
+
+                        AMI_LIST.append({'AccountNumber': account_num,
+                                         'Region': region_data,
+                                         'Encrypted_AMI_ID': encrypted_ami['ImageId'],
+                                         'AMI_ID': account_ami})
+
+                        # Gathers DB and json values
+
+                        put_item = {
+                            'sourceami': recreate_ami_id,
+                            'configami': AMI_ID,
+                            'targetami': account_ami,
+                            'encryptedtargetami': encrypted_ami['ImageId'],
+                            'targetregion': region_data,
+                            'targetawsaccountnum': account_num,
+                            'companyaccountnum': config_data['General'][0]['CompanyAccountNumber'],
+                            'releasedate': config_data['General'][0]['ReleaseDate'],
+                            'amiversionnum': config_data['General'][0]['AmiVersionNumber'],
+                            'stasisdate': config_data['General'][0]['StasisDate'],
+                            'os': config_data['General'][0]['OS'],
+                            'osver': config_data['General'][0]['OsVersion'],
+                            'comments:': config_data['General'][0]['Comments'],
+                            'jobnum': JOB_NUMBER,
+                            'epochtime': int(time.time()),
+                            'logicaldelete': 0}
+
+                        PUT_ITEM_LIST.append(put_item)
+                        try:
+                            table = MAIN_DYNA_RESC.Table(config_data['General'][0]['DynamoDBTable'])
+                            table.put_item(Item=put_item)
+                        except Exception as DynaError:
+                            print(DynaError)
+                            print("Deregistering %s" % encrypted_ami['ImageId'])
+                            ec2_cli.deregister_image(ImageId=encrypted_ami['ImageId'])
+
+                        print("Items have been added to %s" % config_data['General'][0]['DynamoDBTable'])
+
+                        j_data = {
+                            'awsaccountnumber': account_num,
+                            'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
+                            'sourceami': recreate_ami_id,
+                            'sourceamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, recreate_ami_id),
+                            'configami': AMI_ID,
+                            'configamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, AMI_ID),
+                            'targetami': account_ami,
+                            'targetamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, account_ami),
+                            'encryptedami': encrypted_ami['ImageId'],
+                            'os': config_data['General'][0]['OS'],
+                            'osver': config_data['General'][0]['OsVersion'],
+                            'awsaccount': account_num
+
+                        }
+
+                        JSON_INFO_LIST.append(j_data)
+
+                    except botocore.exceptions.ClientError as e:
+                        print(e)
+                        print("Moving on...")
+                        FAILED_ACCOUNTS.append(account_num)
+                        pass
 
 
 if __name__ == '__main__':
@@ -472,8 +472,10 @@ if __name__ == '__main__':
 
     image_details = MAIN_EC2_CLI.describe_images(ImageIds=[certain_ami_id])
 
-    for account_id in account_ids:
-        thread.start_new_thread(process,(account_id,role_name,image_details,certain_ami_id))
+    process(account_numbers=account_ids,
+            role_name=role_name,
+            image_details=image_details,
+            recreate_ami_id=certain_ami_id)
 
 # Creates HTML and JSON documents
 JSON_DOC_LIST.append(json_data_upload(json_data_list=JSON_INFO_LIST))
@@ -484,8 +486,10 @@ if FAILED_ACCOUNTS:
     stored_failed_accounts = FAILED_ACCOUNTS
     del lst1[:]
     print("Retrying these accounts..")
-    for failed_account in stored_failed_accounts:
-        thread.start_new_thread(process,(failed_account,role_name,image_details,certain_ami_id))
+    process(account_numbers=stored_failed_accounts,
+            role_name=role_name,
+            image_details=image_details,
+            recreate_ami_id=certain_ami_id)
     if FAILED_ACCOUNTS:
         print("These accounts failed after retrying: %s" % FAILED_ACCOUNTS)
 
