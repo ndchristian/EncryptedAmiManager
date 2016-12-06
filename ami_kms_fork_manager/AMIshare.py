@@ -392,7 +392,7 @@ def process(account_numbers, role_name, image_details, recreate_ami_id):
                         ec2_cli.deregister_image(ImageId=account_ami)
 
                         AMI_LIST.append({'AccountNumber': account_num,
-                                         'Region': REGION,
+                                         'Region': region_data,
                                          'Encrypted_AMI_ID': encrypted_ami['ImageId'],
                                          'AMI_ID': account_ami})
 
@@ -431,13 +431,15 @@ def process(account_numbers, role_name, image_details, recreate_ami_id):
                             'awsaccountnumber': account_num,
                             'companyaccountnumber': config_data['General'][0]['CompanyAccountNumber'],
                             'sourceami': recreate_ami_id,
+                            'sourceamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, recreate_ami_id),
                             'configami': AMI_ID,
+                            'configamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, AMI_ID),
                             'targetami': account_ami,
+                            'targetamiarn': 'arn:aws:ec2:%s::image/%s' % (region_data, account_ami),
                             'encryptedami': encrypted_ami['ImageId'],
                             'os': config_data['General'][0]['OS'],
                             'osver': config_data['General'][0]['OsVersion'],
-                            'tempvpc': vpc_id,
-                            'tempsubnet': subnet_id
+                            'awsaccount': account_num
 
                         }
 
