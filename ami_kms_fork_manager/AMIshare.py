@@ -245,7 +245,7 @@ def share_ami():
     share_vpc_id = vpc_create(function_ec2_cli=MAIN_EC2_CLI, account_number=MAIN_STS_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
-    new_ami_id = recreate_image(ami=ami_id,
+    new_ami_id = recreate_image(ami=AMI_ID,
                                 function_ec2_cli=MAIN_EC2_CLI,
                                 securitygroup_id=create_sg(function_ec2_cli=MAIN_EC2_CLI,
                                                            funct_vpc_id=share_vpc_id),
