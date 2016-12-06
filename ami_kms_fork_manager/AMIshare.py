@@ -52,7 +52,7 @@ AMI_ID = config_data['General'][0]['AMI_ID']
 JOB_NUMBER = 'jobnum-%s' % int(time.time())
 
 
-def vpc_create(function_ec2_cli, account_number):
+def vpc_create(function_ec2_cli):
     """Creates a temporary VPC"""
 
     try:
@@ -242,7 +242,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 def share_ami():
     """Adds permission for each account to be able to use the AMI."""
 
-    share_vpc_id = vpc_create(function_ec2_cli=MAIN_EC2_CLI, account_number=MAIN_STS_CLI)
+    share_vpc_id = vpc_create(function_ec2_cli=MAIN_EC2_CLI)
     share_subnet_id = create_subnet(function_ec2_cli=MAIN_EC2_CLI, funct_vpc_id=share_vpc_id)
 
     new_ami_id = recreate_image(ami=AMI_ID,
