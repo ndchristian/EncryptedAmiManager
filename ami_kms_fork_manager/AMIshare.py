@@ -147,6 +147,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
         # The reason to recreate the AMI in the main account is because of permission issues
         try:
             print("\tCreating temporary instance with AMI:%s..." % ami)
+            print(function_ec2_cli.describe_images(ImageIds=[ami])['Images'][0]['ImageId'])
             temp_instance = function_ec2_cli.run_instances(ImageId=ami,
                                                            MinCount=1,
                                                            MaxCount=1,
@@ -208,6 +209,17 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
         except botocore.exceptions.ClientError as CreateInstanceErr:
             print(CreateInstanceErr.response['Error']['Code'])
             if CreateInstanceErr.response['Error']['Code'] == 'InvalidGroup.NotFound':
+                tryagain_counter += 1
+
+                if tryagain_counter == 3:
+                    function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+                    function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
+                    function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+                    raise
+                else:
+                    print("Something when wrong. Trying again...")
+                    continue
+            else:
                 tryagain_counter += 1
 
                 if tryagain_counter == 3:
