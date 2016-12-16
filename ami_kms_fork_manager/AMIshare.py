@@ -147,7 +147,6 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
         # The reason to recreate the AMI in the main account is because of permission issues
         try:
             print("\tCreating temporary instance with AMI:%s..." % ami)
-            print('AMI ID:',function_ec2_cli.describe_images(ImageIds=[ami])['Images'][0]['ImageId'])
             temp_instance = function_ec2_cli.run_instances(ImageId=ami,
                                                            MinCount=1,
                                                            MaxCount=1,
