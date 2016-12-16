@@ -244,8 +244,8 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
 
             if counter == 3:
                 print("Failed to make an encrypted AMI.")
-                FAILED_ACCOUNTS.append(funct_account_id)
-                break
+                raise
+
             else:
                 counter += 1
 
