@@ -162,7 +162,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             for tag in config_data['Tags']:
                 function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
                                                         securitygroup_id,
-                                                        temp_instance['Instances'][0]['SubnetId'],
+                                                        funct_subnet_id,
                                                         temp_sg_details['SecurityGroups'][0]['VpcId']],
                                              Tags=[{'Key': tag['TagKey'], 'Value': tag['TagValue']}])
 
