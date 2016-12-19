@@ -190,9 +190,6 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                 function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
                 function_ec2_cli.get_waiter('instance_terminated').wait(
                     InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
-                function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
-                function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
-                function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
                 raise
 
             status_check = function_ec2_cli.describe_images(ImageIds=[new_image['ImageId']])
