@@ -180,6 +180,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             # Checks if the new encrypted image exists and is available
             try:
                 function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
+                time.sleep(10)
                 function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
             except botocore.exceptions.WaiterError as ImageCreationError:
                 print("Something went wrong when trying to create the image...")
