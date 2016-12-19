@@ -157,6 +157,7 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
             function_ec2_cli.get_waiter('instance_running').wait(
                 InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
 
+
             # Adds tags to all temporary resources such as for cost tracking purposes:
             for tag in config_data['Tags']:
                 function_ec2_cli.create_tags(Resources=[temp_instance['Instances'][0]['InstanceId'],
@@ -177,8 +178,19 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                                                       Name=new_image_name[:128])
 
             # Checks if the new encrypted image exists and is available
-            function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
-            function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
+            try:
+                function_ec2_cli.get_waiter('image_exists').wait(ImageIds=[new_image['ImageId']])
+                function_ec2_cli.get_waiter('image_available').wait(ImageIds=[new_image['ImageId']])
+            except botocore.exceptions.WaiterError as ImageCreationError:
+                print("Something went wrong when trying to create the image...")
+                print(ImageCreationError)
+                function_ec2_cli.terminate_instances(InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+                function_ec2_cli.get_waiter('instance_terminated').wait(
+                    InstanceIds=[temp_instance['Instances'][0]['InstanceId']])
+                function_ec2_cli.delete_security_group(GroupId=securitygroup_id)
+                function_ec2_cli.delete_subnet(SubnetId=temp_instance['Instances'][0]['SubnetId'])
+                function_ec2_cli.delete_vpc(VpcId=temp_sg_details['SecurityGroups'][0]['VpcId'])
+                raise
 
             status_check = function_ec2_cli.describe_images(ImageIds=[new_image['ImageId']])
 
@@ -202,6 +214,16 @@ def recreate_image(ami, function_ec2_cli, securitygroup_id, funct_subnet_id, fun
                                         'Subnet': temp_instance['Instances'][0]['SubnetId'],
                                         'VPC': temp_sg_details['SecurityGroups'][0]['VpcId'],
                                         'Message': "Please check if all resources are deleted"})
+            except botocore.exceptions.WaiterError:
+                print("\tSomething went wrong when deleteing temporary objects...")
+                STUCK_INSTANCES.append({'AccountID': funct_account_id,
+                                        'SecurityGroup': securitygroup_id,
+                                        'Subnet': temp_instance['Instances'][0]['SubnetId'],
+                                        'VPC': temp_sg_details['SecurityGroups'][0]['VpcId'],
+                                        'Message': "Please check if all resources are deleted"})
+
+
+
 
             return new_image['ImageId']
 
