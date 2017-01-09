@@ -517,7 +517,7 @@ HTML_DOC_LIST.append(create_html_doc(ami_details_list=AMI_LIST))
 if FAILED_ACCOUNTS:
     print("Failed Accounts: %s" % FAILED_ACCOUNTS)
     stored_failed_accounts = FAILED_ACCOUNTS
-    del lst1[:]
+    del FAILED_ACCOUNTS[:]
     print("Retrying these accounts..")
     process(account_numbers=stored_failed_accounts,
             role_name=role_name,
